@@ -168,3 +168,15 @@ Commands:
 2. Status: `client status -p 1234 -p 1235 -p 1236`
 3. Stop:    `client stop -p 1234 -p 1235 -p 1236`
 4. Output:`client output -p 1234`
+
+## Testing
+All test cases will be implemented via packages `gopkg.in/check.v1` and `testing`.
+### Library:
+For each of the exported functions, there will be a test to cover positive case. For some of them, I will add a negative test case. This is only for demonstrating tests could be implemented to get higher code coverage.
+### gRPC and server
+One test case for successful authentication
+One test case for failed authentication
+One test case for successful authorization
+One test case for failed authorization
+One test case for networking (RPC can be sent and received)
+
