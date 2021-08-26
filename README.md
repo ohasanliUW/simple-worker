@@ -47,8 +47,8 @@ type streamer struct {
   Note that `streamer` structure embeds `os.File` and has many benefits:
   1. Read() and Write() methods for free
   2. Synchronization by kernel for free
-  3. Memory error safe as data is stored in disk
-  4. Will be signed to exec.Cmd.Stdout and exec.Cmd.Stderr fields and both outputs will go into a single file in chronological order.
+  3. Memory-error safe as data is stored in disk
+  4. Will be asigned to exec.Cmd.Stdout and exec.Cmd.Stderr fields and both outputs will go into a single file in chronological order.
 
 Say, if a client is requesting for a job that builds a project, logs can be very long and may take up a lof of space. The above approach is very handy as it uses disk space rather than in-memory buffers. And implementation will be simple as many things come for free.
 
@@ -174,9 +174,9 @@ All test cases will be implemented via packages `gopkg.in/check.v1` and `testing
 ### Library:
 For each of the exported functions, there will be a test to cover positive case. For some of them, I will add a negative test case. This is only for demonstrating tests could be implemented to get higher code coverage.
 ### gRPC and server
-One test case for successful authentication
-One test case for failed authentication
-One test case for successful authorization
-One test case for failed authorization
-One test case for networking (RPC can be sent and received)
+One test case for successful authentication<br />
+One test case for failed authentication<br />
+One test case for successful authorization<br />
+One test case for failed authorization<br />
+One test case for networking (RPC can be sent and received)<br />
 
