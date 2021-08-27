@@ -1,3 +1,6 @@
+
+  
+
 # Code Challenge - Teleport
 
 Purpose of this project is to create a small service that is able to `Start`, `Stop`, get `Status` and stream `Output` of a Linux job. The complete package will consist of 3 main components:  
@@ -83,9 +86,9 @@ Following proto file will be used for RPCs.
 ```go
 service Worker {
   // Starts a job
-  rpc Start(StartRequest) returns (StatusResponse) {}
+  rpc Start(StartRequest) returns (StartResponse) {}
   // Stops the specified job
-  rpc Stop(StopRequest) returns (StatusResponse) {}
+  rpc Stop(StopRequest) returns (StopResponse) {}
   // Gets status of a job
   rpc Status(StatusRequest) returns (StatusResponse) {}
   // List all jobs
@@ -93,6 +96,10 @@ service Worker {
 }
 
 message StartRequest {
+  string command = 1;
+}
+
+message StartResponse {
   string command = 1;
 }
 
