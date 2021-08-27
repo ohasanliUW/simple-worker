@@ -48,7 +48,7 @@ type streamer struct {
 	*os.File
 }
 
-// NewReader returns a ReadCloser
+// NewReader returns a ReadCloser for the output file this streamer is using
 func (s *streamer) NewReader() (io.ReadCloser, error) {
 	f, err := os.Open(s.Name())
 	if err != nil {
@@ -149,6 +149,8 @@ func (j *Job) Output() chan string {
 	return stream
 }
 
+// startStream takes a ReadCloser and reads data line by line
+// then pushes them into the provided channel until Job is exited
 func (j *Job) startStream(rd io.ReadCloser, stream chan string) {
 	defer close(stream)
 	brd := bufio.NewReader(rd)
@@ -175,6 +177,10 @@ func (j *Job) Wait() {
 	<-j.doneC
 }
 
+// start calls Start() and Wait() of underlying exec.Cmd
+// it also updates job status accordingly
+// once Wait() returns, it closes doneC channel so that
+// users can synchronize using this channel
 func (j *Job) start() {
 	var err error
 	defer func() {
@@ -200,7 +206,8 @@ func (j *Job) start() {
 	// following creates a process group, so that killing parent would kill its child processes
 	j.Cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	// TODO: change Cmd.Stdout and Cmd.Stderr to write all of the output into a file
+	// Set both stdout and stderr of the command to use our new streamer so that combined output
+	// goes into a single place
 	j.Cmd.Stdout = j.outStreamer
 	j.Cmd.Stderr = j.outStreamer
 
