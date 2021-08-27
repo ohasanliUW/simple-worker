@@ -28,19 +28,6 @@ func (s *JobSuite) TestGoodStart(c *check.C) {
 	INFO.Printf("TEST: %v\n", good_status)
 	c.Assert(good_status.Exited, check.Equals, true)
 	c.Assert(good_status.ExitCode, check.Equals, 0)
-
-	// // Negative case
-	// bad_command := "maluba 123"
-	// bad_job := NewJob(bad_command)
-	// c.Assert(bad_job, check.NotNil)
-	// bad_job.Start()
-
-	// bad_job.Wait()
-
-	// TODO: Call Start()
-	// TODO: check Status make sure it errored
-	// TODO: check exit code
-
 }
 
 func (s *JobSuite) TestBadStart(c *check.C) {
@@ -51,13 +38,6 @@ func (s *JobSuite) TestBadStart(c *check.C) {
 	bad_job.Start()
 	bad_job.Wait()
 	c.Assert(bad_job.status.Exited, check.Equals, true)
-
-	INFO.Printf("LIB-TEST: Exit reason: %v\n", bad_job.Status().String())
-
-	// TODO: Call Start()
-	// TODO: check Status make sure it errored
-	// TODO: check exit code
-
 }
 
 func (s *JobSuite) TestStop(c *check.C) {
@@ -75,6 +55,52 @@ func (s *JobSuite) TestStop(c *check.C) {
 	job.Wait()
 	c.Assert(err, check.IsNil)
 	c.Assert(job.Status().Exited, check.Equals, true)
-	INFO.Printf("LIB-TEST: Exit reason: %v\n", job.Status().String())
-	INFO.Println(job.Status().ExitCode)
+}
+
+func (s *JobSuite) TestOutput(c *check.C) {
+	job := NewJob("../testdata/echo.sh")
+	c.Assert(job, check.NotNil)
+
+	job.Start()
+
+	expect := 6  // expecting 6 lines of output
+	actual1 := 0 // actual lines from first readout
+	actual2 := 0 // actual lines from second readout
+	ch1 := make(chan int)
+	ch2 := make(chan int)
+
+	// readHandle is a function that will read from channel
+	// and count number of lines till channel is closed
+	readHandle := func(s chan string, outC chan int) {
+		counter := 0
+		for {
+			line, open := <-s
+
+			// If stream is closed, then we are at the end of the output
+			if !open {
+				break
+			}
+			INFO.Println(line)
+			counter += 1
+		}
+		outC <- counter
+		close(outC)
+	}
+
+	// get first stream
+	s1 := job.Output()
+	// start the first readout
+	go readHandle(s1, ch1)
+	// wait for couple seconds
+	time.Sleep(2 * time.Second)
+
+	// get second stream and start readout
+	s2 := job.Output()
+	go readHandle(s2, ch2)
+
+	job.Wait()
+
+	actual1, actual2 = <-ch1, <-ch2
+	c.Assert(actual1, check.Equals, expect)
+	c.Assert(actual2, check.Equals, expect)
 }
