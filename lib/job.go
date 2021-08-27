@@ -188,8 +188,8 @@ func (j *Job) start() {
 			j.status.Status = err.Error()
 			j.status.ExitCode = -1
 		} else {
-			j.status.Status = "Unknown Error, could not start the process"
-			j.status.ExitCode = -1
+			j.status.Status = "completed"
+			j.status.ExitCode = 0
 		}
 
 		j.Unlock()
