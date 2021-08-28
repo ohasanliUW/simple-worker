@@ -150,7 +150,7 @@ Communication channels between clients and server will be protected via mutual T
 For simplicity, each client certificate will embed client's username in `Common Name` field. Server. will extract this information and authorize RPCs on existing jobs if and only if it belongs to that user.
 Server will record each created Job in a map data structure. It will look like this:
 `map[string]map[int]*Job`
-I.e, username -> JobId/PID -> Job
+I.e, username -> Job ID -> Job
 
 If authorization fails for a running job, then instead of admitting that "such job exists but failed to authorize for stopping it", it is better to simply to say `job id not found`. Similar to how entering wrong password for a valid email tells that `username or password is incorrect` rather than saying that `password is incorrect`.
 
