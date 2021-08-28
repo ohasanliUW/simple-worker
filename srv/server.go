@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	lib "simple-worker/job"
 	"syscall"
+	"time"
 
 	pb "simple-worker/protobuf"
 
@@ -120,6 +121,43 @@ func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusRe
 	}, nil
 }
 
+func (s *server) Output(in *pb.OutputRequest, stream pb.Worker_OutputServer) (err error) {
+	job_id := in.GetJobId()
+
+	streamC, err := s.outputOfJob("dummy", job_id)
+	if err != nil {
+		return err
+	}
+
+	// try sending up to 10 lines at a time
+	// if stream channel does not have data within 1 millisecond, send whatever we already have
+	maxLinesPerRPC := 10
+	maxWaitTime := time.Millisecond
+	for {
+		// read until channel is closed, which indicates end of the job
+		batch, end := getNextLineBatch(streamC, maxLinesPerRPC, maxWaitTime)
+		// if batch has length of 0, then no need to send
+		if len(batch) == 0 && !end {
+			continue
+		} else if end {
+			break
+		}
+		resp := &pb.OutputResponse{
+			OutputLine: batch,
+		}
+
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+
+		if end {
+			break
+		}
+	}
+
+	return nil
+}
+
 // createJob creates a job with command for user with username
 func (s *server) createJob(username string, command string) (*lib.Job, error) {
 	job := lib.NewJob(command)
@@ -156,6 +194,45 @@ func (s *server) statusOfJob(username string, job_id int64) (lib.JobStatus, erro
 	job := s.jobs[username][job_id]
 	status := job.Status()
 	return status, nil
+}
+
+func (s *server) outputOfJob(username string, job_id int64) (chan string, error) {
+	authErr := s.authorize(username, job_id)
+	if authErr != nil {
+		return nil, authErr
+	}
+
+	job := s.jobs[username][job_id]
+	outStreamC := job.Output()
+
+	if outStreamC == nil {
+		return nil, errors.New("could not get output of the job")
+	}
+
+	return outStreamC, nil
+}
+
+func getNextLineBatch(streamC chan string, size int, d time.Duration) ([]string, bool) {
+	batch := make([]string, 0, size)
+	count := 0
+	for {
+		// read until channel is closed, which indicates end of the job
+		select {
+		case <-time.After(d):
+			return batch, false
+		case line, open := <-streamC:
+			if !open {
+				return batch, true
+			}
+
+			batch = append(batch, line)
+			count += 1
+
+			if count == size {
+				return batch, false
+			}
+		}
+	}
 }
 
 // returns AuthError if user with username is not authorized to take action

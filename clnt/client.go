@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"time"
@@ -131,6 +132,40 @@ type OutputCommand struct {
 }
 
 func (cc *OutputCommand) run(c *kingpin.ParseContext) error {
+	conn, client, err := connect()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stream, err := client.Output(ctx, &pb.OutputRequest{
+		JobId: int64(cc.JobId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	for {
+		resp, err := stream.Recv()
+		// if EOF, simply break the loop and return nil
+		if err == io.EOF {
+			break
+		}
+
+		// if err, return it
+		if err != nil {
+			return err
+		}
+
+		// for each received line, simply print it
+		for _, line := range resp.OutputLine {
+			fmt.Print(line)
+		}
+	}
 	return nil
 }
 

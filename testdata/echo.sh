@@ -1,5 +1,5 @@
 #!/bin/sh
-count=5
+count=30
 
 for i in $(seq $count -1 0); do
    echo "$i"
