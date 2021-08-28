@@ -91,7 +91,8 @@ service Worker {
   rpc Stop(StopRequest) returns (StopResponse) {}
   // Gets status of a job
   rpc Status(StatusRequest) returns (StatusResponse) {}
-  // List all jobs
+  // Get output of a job. If job is still running, it will stream
+  // the output
   rpc Output(OutputRequest) returns (stream OutputResponse) {}
 }
 
