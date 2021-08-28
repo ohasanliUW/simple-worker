@@ -20,6 +20,7 @@ type StartCommand struct {
 	Command string
 }
 
+// takes parsed command line arguments and makes a Start() RPC call to the server
 func (cc *StartCommand) run(c *kingpin.ParseContext) error {
 
 	conn, client, err := connect()
@@ -60,6 +61,7 @@ type StopCommand struct {
 	JobId int
 }
 
+// takes parsed command line arguments and makes a Stop() RPC call to the server
 func (cc *StopCommand) run(c *kingpin.ParseContext) error {
 	conn, client, err := connect()
 	if err != nil {
@@ -93,6 +95,7 @@ type StatusCommand struct {
 	JobId int
 }
 
+// takes parsed command line arguments and makes a Status() RPC call to the server
 func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
 	conn, client, err := connect()
 	if err != nil {
@@ -135,6 +138,7 @@ type OutputCommand struct {
 	JobId int
 }
 
+// takes parsed command line arguments and makes an Output() RPC call to the server
 func (cc *OutputCommand) run(c *kingpin.ParseContext) error {
 	conn, client, err := connect()
 	if err != nil {

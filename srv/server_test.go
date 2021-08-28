@@ -22,7 +22,7 @@ func (s *ServerSuite) TestCreateJob(c *check.C) {
 	username := "alice"
 	command := "echo Hello There"
 
-	job, err := srv.createJob(username, command)
+	job, err := srv.startJob(username, command)
 	c.Assert(err, check.IsNil)
 	c.Assert(job, check.NotNil)
 }
@@ -35,7 +35,7 @@ func (s *ServerSuite) TestDenyCommand(c *check.C) {
 	alice := "alice"
 	command := "echo Hello There"
 
-	job, err := srv.createJob(alice, command)
+	job, err := srv.startJob(alice, command)
 	c.Assert(err, check.IsNil)
 	c.Assert(job, check.NotNil)
 
@@ -54,7 +54,7 @@ func (s *ServerSuite) TestPermitCommand(c *check.C) {
 	alice := "alice"
 	command := "echo Hello There"
 
-	job, err := srv.createJob(alice, command)
+	job, err := srv.startJob(alice, command)
 	c.Assert(err, check.IsNil)
 	c.Assert(job, check.NotNil)
 
