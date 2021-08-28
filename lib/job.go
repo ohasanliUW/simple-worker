@@ -97,14 +97,14 @@ func (j *Job) Start() error {
 
 	// If job already started, return an error indicating so
 	if j.cmd.Process != nil {
-		return
+		return errors.New("job has already started")
 	}
 
 	// If job has already exited, then disallow rerun
 	// NOTE: user can always create a new job with same command
 	// TODO: return an error
 	if j.status.Exited {
-		return
+		return errors.New("job has exited; cannot restart")
 	}
 
 	// If creating a file to store output fails, don't run the job
