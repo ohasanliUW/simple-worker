@@ -76,19 +76,18 @@ func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartRespo
 		)
 	}
 
-	job, err := s.createJob("dummy", command)
-	if err != nil {
-		return nil, err
-	}
+	job, err := s.startJob("dummy", command)
 
-	err = job.Start()
-	if err != nil {
-		return nil, err
+	// Even though job.Start() fails, it is a valid job as it was successfully created.
+	// Seems gRPC does not send back response if error is not nil.
+	// Hence, we should return an error that has Job ID within its message
+	if job != nil && err != nil {
+		msg := fmt.Sprintf("Job ID %v: %v", job.Id(), err.Error())
+		err = errors.New(msg)
 	}
-
 	return &pb.StartResponse{
 		JobId: job.Id(),
-	}, nil
+	}, err
 }
 
 func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse, error) {
@@ -136,11 +135,9 @@ func (s *server) Output(in *pb.OutputRequest, stream pb.Worker_OutputServer) (er
 	for {
 		// read until channel is closed, which indicates end of the job
 		batch, end := getNextLineBatch(streamC, maxLinesPerRPC, maxWaitTime)
-		// if batch has length of 0, then no need to send
+		// if batch has length of 0, but stream has not ended, then try again
 		if len(batch) == 0 && !end {
 			continue
-		} else if end {
-			break
 		}
 		resp := &pb.OutputResponse{
 			OutputLine: batch,
@@ -159,7 +156,7 @@ func (s *server) Output(in *pb.OutputRequest, stream pb.Worker_OutputServer) (er
 }
 
 // createJob creates a job with command for user with username
-func (s *server) createJob(username string, command string) (*lib.Job, error) {
+func (s *server) startJob(username string, command string) (*lib.Job, error) {
 	job := lib.NewJob(command)
 
 	if job == nil {
@@ -171,6 +168,11 @@ func (s *server) createJob(username string, command string) (*lib.Job, error) {
 		userJobs = s.jobs[username]
 	}
 	userJobs[job.Id()] = job
+
+	if err := job.Start(); err != nil {
+		return job, err
+	}
+
 	return job, nil
 }
 
@@ -215,8 +217,8 @@ func (s *server) outputOfJob(username string, job_id int64) (chan string, error)
 func getNextLineBatch(streamC chan string, size int, d time.Duration) ([]string, bool) {
 	batch := make([]string, 0, size)
 	count := 0
+
 	for {
-		// read until channel is closed, which indicates end of the job
 		select {
 		case <-time.After(d):
 			return batch, false

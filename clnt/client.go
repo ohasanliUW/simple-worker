@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -35,6 +36,9 @@ func (cc *StartCommand) run(c *kingpin.ParseContext) error {
 	})
 
 	if err != nil {
+		if resp != nil {
+			err = errors.New(fmt.Sprintf("%v", resp.GetJobId()) + err.Error())
+		}
 		return err
 	}
 
