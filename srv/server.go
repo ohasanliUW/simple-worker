@@ -104,6 +104,22 @@ func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse
 	}, nil
 }
 
+func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusResponse, error) {
+	job_id := in.GetJobId()
+
+	status, err := s.statusOfJob("dummy", job_id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.StatusResponse{
+		JobId:    job_id,
+		Status:   status.Status,
+		Exited:   status.Exited,
+		ExitCode: int32(status.ExitCode),
+	}, nil
+}
+
 // createJob creates a job with command for user with username
 func (s *server) createJob(username string, command string) (*lib.Job, error) {
 	job := lib.NewJob(command)
@@ -121,7 +137,6 @@ func (s *server) createJob(username string, command string) (*lib.Job, error) {
 }
 
 func (s *server) stopJob(username string, job_id int64) error {
-	// find job
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
 		return authErr
@@ -130,6 +145,17 @@ func (s *server) stopJob(username string, job_id int64) error {
 	job := s.jobs[username][job_id]
 	err := job.Stop()
 	return err
+}
+
+func (s *server) statusOfJob(username string, job_id int64) (lib.JobStatus, error) {
+	authErr := s.authorize(username, job_id)
+	if authErr != nil {
+		return lib.JobStatus{}, authErr
+	}
+
+	job := s.jobs[username][job_id]
+	status := job.Status()
+	return status, nil
 }
 
 // returns AuthError if user with username is not authorized to take action

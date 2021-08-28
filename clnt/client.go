@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -39,7 +39,7 @@ func (cc *StartCommand) run(c *kingpin.ParseContext) error {
 
 	job_id := resp.GetJobId()
 
-	log.Printf("Successfully started Job. Job ID %v\n", job_id)
+	fmt.Printf("Successfully started Job. Job ID %v\n", job_id)
 
 	return nil
 }
@@ -73,7 +73,7 @@ func (cc *StopCommand) run(c *kingpin.ParseContext) error {
 		return err
 	}
 
-	log.Println(resp.Message)
+	fmt.Println(resp.Message)
 	return nil
 }
 
@@ -89,6 +89,33 @@ type StatusCommand struct {
 }
 
 func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
+	conn, client, err := connect()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := client.Status(ctx, &pb.StatusRequest{
+		JobId: int64(cc.JobId),
+	})
+
+	if err != nil {
+		return err
+	}
+
+	job_id := resp.GetJobId()
+	status := resp.GetStatus()
+	exited := resp.GetExited()
+	exitCode := resp.GetExitCode()
+
+	if !exited {
+		fmt.Printf("Job %v: %v\n", job_id, status)
+	} else {
+		fmt.Printf("Job %v: %v, Exit Code %v\n", job_id, status, exitCode)
+	}
 	return nil
 }
 
