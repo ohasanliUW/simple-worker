@@ -40,7 +40,7 @@ func (s *ServerSuite) TestDenyCommand(c *check.C) {
 	c.Assert(job, check.NotNil)
 
 	bob := "bob"
-	err = srv.killJob(bob, job.Id())
+	err = srv.stopJob(bob, job.Id())
 
 	errType := reflect.TypeOf(err)
 	c.Assert(errType, check.Equals, reflect.TypeOf(&AuthError{}))
@@ -58,7 +58,7 @@ func (s *ServerSuite) TestPermitCommand(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(job, check.NotNil)
 
-	err = srv.killJob(alice, job.Id())
+	err = srv.stopJob(alice, job.Id())
 
 	errType := reflect.TypeOf(err)
 	c.Assert(errType, check.Not(check.Equals), reflect.TypeOf(&AuthError{}))

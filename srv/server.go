@@ -41,9 +41,9 @@ func (s *server) createJob(username string, command string) (*lib.Job, error) {
 	return job, nil
 }
 
-func (s *server) killJob(username string, job_id int64) error {
+func (s *server) stopJob(username string, job_id int64) error {
 	// find job
-	authErr := s.authorized(username, job_id)
+	authErr := s.isAuthorized(username, job_id)
 	if authErr != nil {
 		return authErr
 	}
@@ -55,7 +55,7 @@ func (s *server) killJob(username string, job_id int64) error {
 
 // returns AuthError if user with username is not authorized to take action
 // on a job with job_id
-func (s *server) authorized(username string, job_id int64) error {
+func (s *server) isAuthorized(username string, job_id int64) error {
 	// find job
 	userJobs, exists := s.jobs[username]
 	if !exists {
