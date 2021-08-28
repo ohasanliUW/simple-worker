@@ -11,56 +11,47 @@ import (
 //  START COMMAND
 ///////////////////////////////
 type StartCommand struct {
-	Command []string
+	Command string
 }
 
 func (cc *StartCommand) run(c *kingpin.ParseContext) error {
 	fmt.Printf("command=%v\n", cc.Command)
-	for _, cc := range cc.Command {
-		fmt.Printf("Command: %v\n", cc)
-	}
 	return nil
 }
 
 func configureStartCommand(app *kingpin.Application) {
 	c := &StartCommand{}
 	cc := app.Command("start", "Start a job to execute a command(s)").Action(c.run)
-	cc.Flag("command", "Execute specified command in remote server (Repeatable)").Required().Short('c').StringsVar(&c.Command)
+	cc.Flag("command", "Execute specified command in remote server (Repeatable)").Required().Short('c').StringVar(&c.Command)
 }
 
 ///////////////////////////////
 //  STOP COMMAND
 ///////////////////////////////
 type StopCommand struct {
-	PIDs []int
+	PID int
 }
 
 func (cc *StopCommand) run(c *kingpin.ParseContext) error {
-	fmt.Printf("PIDs=%v\n", cc.PIDs)
-	for _, cc := range cc.PIDs {
-		fmt.Printf("PID: %v\n", cc)
-	}
+	fmt.Printf("PID=%v\n", cc.PID)
 	return nil
 }
 
 func configureStopCommand(app *kingpin.Application) {
 	c := &StopCommand{}
 	cc := app.Command("stop", "Stop a job(s) at remote server").Action(c.run)
-	cc.Flag("pid", "Process ID of the job (Repeatable)").Required().Short('p').IntsVar(&c.PIDs)
+	cc.Flag("pid", "Process ID of the job (Repeatable)").Required().Short('p').IntVar(&c.PID)
 }
 
 ///////////////////////////////
 //  STATUS COMMAND
 ///////////////////////////////
 type StatusCommand struct {
-	PIDs []int
+	PID []int
 }
 
 func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
-	fmt.Printf("PIDs=%v\n", cc.PIDs)
-	for _, cc := range cc.PIDs {
-		fmt.Printf("PID: %v\n", cc)
-	}
+	fmt.Printf("PID=%v\n", cc.PID)
 	return nil
 }
 
