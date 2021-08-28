@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,12 +12,6 @@ import (
 	"syscall"
 	"time"
 )
-
-var INFO *log.Logger
-
-func init() {
-	INFO = log.New(os.Stdout, "LIB-INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
-}
 
 type Job struct {
 	*sync.Mutex // to protect some of data from simultaneous reads and writes
@@ -66,7 +59,6 @@ func NewStreamer() (Streamer, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("Created tmp file: %v\n", f.Name())
 	return &streamer{File: f}, nil
 }
 
@@ -111,7 +103,6 @@ func (j *Job) Start() error {
 	// TODO: implement the this if have some time
 	outStreamer, err := NewStreamer()
 	if err != nil {
-		INFO.Printf("Failed to create a file to stream output of the run")
 		return errors.New("failed to create a file to stream output of the run")
 	}
 
@@ -155,13 +146,11 @@ func (j *Job) Stop() error {
 	}
 	pgid, err := syscall.Getpgid(pid)
 	if err != nil {
-		INFO.Printf("Unable to get group id for process %v\n", pid)
 		return err
 	}
 
 	err = syscall.Kill(-pgid, syscall.SIGTERM)
 	if err != nil {
-		INFO.Printf("Unable to kill process group")
 		return err
 	}
 
@@ -174,7 +163,6 @@ func (j *Job) Stop() error {
 func (j *Job) Output() chan string {
 	rd, err := j.outStreamer.NewReader()
 	if err != nil {
-		INFO.Printf("Could not create a reader for the output file")
 		return nil
 	}
 
@@ -261,7 +249,6 @@ func (j *Job) start(errC chan error) {
 
 	err = j.cmd.Start()
 	if err != nil {
-		INFO.Println("Start() failed:", err)
 		errC <- err
 		close(errC)
 		return
@@ -276,13 +263,10 @@ func (j *Job) start(errC chan error) {
 	j.status.started = true
 	j.Unlock()
 
-	INFO.Println("Successfully started job:", j.id)
-
 	// Note: errC error channel will not be used for Wait(). Purpose of
 	// errC is to return an immediate error from Start().
 	err = j.cmd.Wait()
 	if err != nil {
-		INFO.Println("Wait() returned with an error:", err)
 		return
 	}
 }

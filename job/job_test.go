@@ -27,7 +27,6 @@ func (s *JobSuite) TestGoodStart(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(pid, check.Not(check.Equals), -1)
 	good_status := good_job.Status()
-	INFO.Printf("TEST: %v\n", good_status)
 	c.Assert(good_status.Exited, check.Equals, true)
 	c.Assert(good_status.ExitCode, check.Equals, 0)
 }
@@ -78,13 +77,12 @@ func (s *JobSuite) TestOutput(c *check.C) {
 	readHandle := func(s chan string, outC chan int) {
 		counter := 0
 		for {
-			line, open := <-s
+			_, open := <-s
 
 			// If stream is closed, then we are at the end of the output
 			if !open {
 				break
 			}
-			INFO.Println(line)
 			counter += 1
 		}
 		outC <- counter
