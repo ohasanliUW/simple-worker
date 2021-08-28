@@ -91,7 +91,6 @@ func NewJob(command string) *Job {
 
 // Start starts the job. It will call Start() and Wait() on underlying
 // exec.Cmd. Any error will be reported to job's status
-// TODO: return error
 func (j *Job) Start() error {
 
 	// If job already started, return an error indicating so
@@ -101,7 +100,6 @@ func (j *Job) Start() error {
 
 	// If job has already exited, then disallow rerun
 	// NOTE: user can always create a new job with same command
-	// TODO: return an error
 	if j.status.Exited {
 		return errors.New("job has exited; cannot restart")
 	}
@@ -191,10 +189,12 @@ func (j *Job) Wait() {
 	<-j.doneC
 }
 
+// Id returns the job id
 func (j *Job) Id() int64 {
 	return j.id
 }
 
+// Pid returns the PID of underlying process
 func (j *Job) Pid() (int, error) {
 	if j.cmd.Process == nil {
 		return -1, errors.New("job has not started yet")
@@ -229,8 +229,6 @@ func (j *Job) startStream(rd io.ReadCloser, stream chan string) {
 // it also updates job status accordingly
 // once Wait() returns, it closes doneC channel so that
 // users can synchronize using this channel
-// TODO: add error channel as an argument and write
-// any errors during start to the channel and return
 func (j *Job) start(errC chan error) {
 	var err error
 	defer func() {
@@ -280,6 +278,8 @@ func (j *Job) start(errC chan error) {
 
 	INFO.Println("Successfully started job:", j.id)
 
+	// Note: errC error channel will not be used for Wait(). Purpose of
+	// errC is to return an immediate error from Start().
 	err = j.cmd.Wait()
 	if err != nil {
 		INFO.Println("Wait() returned with an error:", err)
