@@ -7,9 +7,7 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-///////////////////////////////
-//  START COMMAND
-///////////////////////////////
+//  Start command
 type StartCommand struct {
 	Command string
 }
@@ -25,9 +23,7 @@ func configureStartCommand(app *kingpin.Application) {
 	cc.Flag("command", "Execute specified command in remote server (Repeatable)").Required().Short('c').StringVar(&c.Command)
 }
 
-///////////////////////////////
-//  STOP COMMAND
-///////////////////////////////
+//  Stop command
 type StopCommand struct {
 	PID int
 }
@@ -43,9 +39,7 @@ func configureStopCommand(app *kingpin.Application) {
 	cc.Flag("pid", "Process ID of the job (Repeatable)").Required().Short('p').IntVar(&c.PID)
 }
 
-///////////////////////////////
-//  STATUS COMMAND
-///////////////////////////////
+//  Status command
 type StatusCommand struct {
 	PID []int
 }
@@ -61,9 +55,7 @@ func configureStatusCommand(app *kingpin.Application) {
 	cc.Flag("pid", "Process ID of the job (Repeatable)").Required().Short('p').IntsVar(&c.PIDs)
 }
 
-///////////////////////////////
-//  OUTPUT COMMAND
-///////////////////////////////
+//  Output command
 type OutputCommand struct {
 	PID int
 }
@@ -77,6 +69,24 @@ func configureOutputCommand(app *kingpin.Application) {
 	c := &OutputCommand{}
 	cc := app.Command("output", "Get output of a job at remote server").Action(c.run)
 	cc.Flag("pid", "Process ID of the job").Required().Short('p').IntVar(&c.PID)
+}
+
+// Server connection details
+const (
+	serverAddr = "127.0.0.1"
+	serverPort = "50051"
+)
+
+func connect() error {
+	// server := net.JoinHostPort(serverAddr, serverPort)
+
+	// setup insecure connection for now
+	// TODO: change this to use mTLS instead
+	//conn, err := grpc.Dial(server, grpc.WithInsecure())
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	return nil
 }
 
 func main() {
