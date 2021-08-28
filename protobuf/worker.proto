@@ -1,0 +1,49 @@
+syntax = "proto3";
+option go_package = "simple-worker/worker";
+
+package worker;
+
+service Worker {
+  // Starts a job
+  rpc Start(StartRequest) returns (StartResponse) {}
+  // Stops the specified job
+  rpc Stop(StopRequest) returns (StopResponse) {}
+  // Gets status of a job
+  rpc Status(StatusRequest) returns (StatusResponse) {}
+  // List all jobs
+  rpc Output(OutputRequest) returns (stream OutputResponse) {}
+}
+
+message StartRequest {
+  string command = 1;
+}
+
+message StartResponse {
+  int64 job_id = 1;
+}
+
+message StopRequest {
+  int64 job_id = 1;
+}
+
+message StopResponse {
+  string message = 1;
+}
+
+message StatusRequest {
+  int64 job_id = 1;
+}
+
+message StatusResponse {
+  int64 job_id = 1;
+  string status = 2;
+  bool exited = 3;
+}
+
+message OutputRequest {
+  int64 job_id = 1;
+}
+
+message OutputResponse {
+  repeated string output_line = 1;
+}
