@@ -21,9 +21,8 @@ func init() {
 }
 
 type Job struct {
-	Id int64
-
 	*sync.Mutex // to protect some of data from simultaneous reads and writes
+	id          int64
 	cmd         *exec.Cmd
 	outStreamer Streamer
 	status      JobStatus // current status of this job
@@ -76,7 +75,7 @@ func NewJob(command string) *Job {
 	args := strings.Split(command, " ")
 	job := &Job{
 		cmd:   exec.Command(args[0], args[1:]...),
-		Id:    time.Now().Unix(),
+		id:    time.Now().Unix(),
 		Mutex: &sync.Mutex{},
 		doneC: make(chan struct{}),
 		status: JobStatus{
@@ -187,6 +186,22 @@ func (j *Job) Output() chan string {
 	return stream
 }
 
+// Wait blocks until Job is complete.
+func (j *Job) Wait() {
+	<-j.doneC
+}
+
+func (j *Job) Id() int64 {
+	return j.id
+}
+
+func (j *Job) Pid() (int, error) {
+	if j.cmd.Process == nil {
+		return -1, errors.New("job has not started yet")
+	}
+	return j.cmd.Process.Pid, nil
+}
+
 // startStream takes a ReadCloser and reads data line by line
 // then pushes them into the provided channel until Job is exited
 func (j *Job) startStream(rd io.ReadCloser, stream chan string) {
@@ -208,18 +223,6 @@ func (j *Job) startStream(rd io.ReadCloser, stream chan string) {
 		}
 		stream <- line
 	}
-}
-
-// Wait blocks until Job is complete.
-func (j *Job) Wait() {
-	<-j.doneC
-}
-
-func (j *Job) Pid() (int, error) {
-	if j.cmd.Process == nil {
-		return -1, errors.New("job has not started yet")
-	}
-	return j.cmd.Process.Pid, nil
 }
 
 // start calls Start() and Wait() of underlying exec.Cmd
@@ -275,7 +278,7 @@ func (j *Job) start(errC chan error) {
 	j.status.started = true
 	j.Unlock()
 
-	INFO.Println("Successfully started job:", j.Id)
+	INFO.Println("Successfully started job:", j.id)
 
 	err = j.cmd.Wait()
 	if err != nil {
