@@ -23,7 +23,9 @@ func (s *JobSuite) TestGoodStart(c *check.C) {
 	good_job.Start()
 
 	good_job.Wait()
-	c.Assert(good_job.Pid, check.Not(check.Equals), 0)
+	pid, err := good_job.Pid()
+	c.Assert(err, check.IsNil)
+	c.Assert(pid, check.Not(check.Equals), -1)
 	good_status := good_job.Status()
 	INFO.Printf("TEST: %v\n", good_status)
 	c.Assert(good_status.Exited, check.Equals, true)
@@ -48,10 +50,12 @@ func (s *JobSuite) TestStop(c *check.C) {
 	//wait for few milliseconds then stop the job.
 	time.Sleep(time.Millisecond * 100)
 
-	c.Assert(job.Pid, check.Not(check.Equals), 0)
+	pid, err := job.Pid()
+	c.Assert(err, check.IsNil)
+	c.Assert(pid, check.Not(check.Equals), -1)
 	c.Assert(job.Status().Exited, check.Equals, false)
 
-	err := job.Stop()
+	err = job.Stop()
 	job.Wait()
 	c.Assert(err, check.IsNil)
 	c.Assert(job.Status().Exited, check.Equals, true)
@@ -104,3 +108,18 @@ func (s *JobSuite) TestOutput(c *check.C) {
 	c.Assert(actual1, check.Equals, expect)
 	c.Assert(actual2, check.Equals, expect)
 }
+
+// func startJob() *Job {
+// 	job := NewJob("../testdata/echo.sh")
+// 	job.Start()
+// 	return job
+// }
+
+// func (s *JobSuite) TestJob(c *check.C) {
+// 	j := startJob()
+// 	pid, _ := j.Pid()
+// 	fmt.Println(pid)
+// 	time.Sleep(time.Second * 2)
+// 	j = nil
+// 	time.Sleep(time.Second * 4)
+// }

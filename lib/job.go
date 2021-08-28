@@ -2,11 +2,13 @@ package job
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -19,10 +21,10 @@ func init() {
 }
 
 type Job struct {
-	Cmd *exec.Cmd
-	Pid int
+	Id int64
 
 	*sync.Mutex // to protect some of data from simultaneous reads and writes
+	cmd         *exec.Cmd
 	outStreamer Streamer
 	status      JobStatus // current status of this job
 	doneC       chan struct{}
@@ -32,6 +34,8 @@ type JobStatus struct {
 	Status   string // string representation of the status
 	Exited   bool   // job as exited (true) or not (false)
 	ExitCode int    // exit code of the job; meaningless if not exited
+
+	started bool // flag to indicate that Start() was successful
 }
 
 // String returns text describing current state of the job
@@ -69,16 +73,17 @@ func NewStreamer() (Streamer, error) {
 
 // NewJob creates a job with specified command but does not start it
 func NewJob(command string) *Job {
-
-	args := []string{"/bin/sh", "-c", command}
+	args := strings.Split(command, " ")
 	job := &Job{
-		Cmd:   exec.Command(args[0], args[1:]...),
+		cmd:   exec.Command(args[0], args[1:]...),
+		Id:    time.Now().Unix(),
 		Mutex: &sync.Mutex{},
 		doneC: make(chan struct{}),
 		status: JobStatus{
 			Status:   "not running",
 			Exited:   false,
 			ExitCode: 0,
+			started:  false,
 		},
 	}
 
@@ -87,10 +92,18 @@ func NewJob(command string) *Job {
 
 // Start starts the job. It will call Start() and Wait() on underlying
 // exec.Cmd. Any error will be reported to job's status
-func (j *Job) Start() {
+// TODO: return error
+func (j *Job) Start() error {
 
-	// Don't do anything if job has already started
-	if j.Cmd.Process != nil {
+	// If job already started, return an error indicating so
+	if j.cmd.Process != nil {
+		return
+	}
+
+	// If job has already exited, then disallow rerun
+	// NOTE: user can always create a new job with same command
+	// TODO: return an error
+	if j.status.Exited {
 		return
 	}
 
@@ -102,12 +115,22 @@ func (j *Job) Start() {
 	outStreamer, err := NewStreamer()
 	if err != nil {
 		INFO.Printf("Failed to create a file to stream output of the run")
-		return
+		return errors.New("failed to create a file to stream output of the run")
 	}
 
 	j.outStreamer = outStreamer
 
-	go j.start()
+	// start() will call exec.Cmd.Start() which might return an error
+	// need to wait until result of Start() comes back so that we can
+	// immediately report it back to the caller
+	errC := make(chan error)
+	go j.start(errC)
+
+	// Channel will either return an error or will be closed and give nil error
+	// In any case, we need to return it back to the caller
+	err, _ = <-errC
+
+	return err
 }
 
 // Status returns status of this job.
@@ -116,11 +139,26 @@ func (j *Job) Status() JobStatus {
 	return j.status
 }
 
-// Stop terminates a running job. Does nothing if job has already stopped.
+// Stop terminates a running job. Returns immediately if job has already exited
 func (j *Job) Stop() error {
-	pgid, err := syscall.Getpgid(j.Pid)
+
+	if j.status.Exited {
+		return nil
+	}
+
+	// if job has not started yet, simply mark it exited
+	if !j.status.started {
+		j.status.Exited = true
+
+	}
+
+	pid, err := j.Pid()
 	if err != nil {
-		INFO.Printf("Unable to get group id for process %v\n", j.Pid)
+		return err
+	}
+	pgid, err := syscall.Getpgid(pid)
+	if err != nil {
+		INFO.Printf("Unable to get group id for process %v\n", pid)
 		return err
 	}
 
@@ -177,19 +215,28 @@ func (j *Job) Wait() {
 	<-j.doneC
 }
 
+func (j *Job) Pid() (int, error) {
+	if j.cmd.Process == nil {
+		return -1, errors.New("job has not started yet")
+	}
+	return j.cmd.Process.Pid, nil
+}
+
 // start calls Start() and Wait() of underlying exec.Cmd
 // it also updates job status accordingly
 // once Wait() returns, it closes doneC channel so that
 // users can synchronize using this channel
-func (j *Job) start() {
+// TODO: add error channel as an argument and write
+// any errors during start to the channel and return
+func (j *Job) start(errC chan error) {
 	var err error
 	defer func() {
 		j.Lock()
 		j.status.Exited = true
 
-		if j.Cmd.ProcessState != nil {
-			j.status.Status = j.Cmd.ProcessState.String()
-			j.status.ExitCode = j.Cmd.ProcessState.ExitCode()
+		if j.cmd.ProcessState != nil {
+			j.status.Status = j.cmd.ProcessState.String()
+			j.status.ExitCode = j.cmd.ProcessState.ExitCode()
 		} else if err != nil {
 			j.status.Status = err.Error()
 			j.status.ExitCode = -1
@@ -204,28 +251,33 @@ func (j *Job) start() {
 	}()
 
 	// following creates a process group, so that killing parent would kill its child processes
-	j.Cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	j.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	// Set both stdout and stderr of the command to use our new streamer so that combined output
 	// goes into a single place
-	j.Cmd.Stdout = j.outStreamer
-	j.Cmd.Stderr = j.outStreamer
+	j.cmd.Stdout = j.outStreamer
+	j.cmd.Stderr = j.outStreamer
 
-	err = j.Cmd.Start()
+	err = j.cmd.Start()
 	if err != nil {
 		INFO.Println("Start() failed:", err)
+		errC <- err
+		close(errC)
 		return
 	}
+
+	// Start did not fail, so just close the errC
+	close(errC)
 
 	j.Lock()
 	j.status.Status = "running"
 	j.status.Exited = false
-	j.Pid = j.Cmd.Process.Pid
+	j.status.started = true
 	j.Unlock()
 
-	INFO.Println("Successfully started job:", j.Pid)
+	INFO.Println("Successfully started job:", j.Id)
 
-	err = j.Cmd.Wait()
+	err = j.cmd.Wait()
 	if err != nil {
 		INFO.Println("Wait() returned with an error:", err)
 		return
