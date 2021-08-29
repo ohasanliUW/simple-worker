@@ -124,11 +124,15 @@ func (j *Job) Start() error {
 // Status returns status of this job.
 // Users can determine whether specified job has completed or not via this function
 func (j *Job) Status() JobStatus {
+	j.Lock()
+	defer j.Unlock()
 	return j.status
 }
 
 // Stop terminates a running job. Returns immediately if job has already exited
 func (j *Job) Stop() error {
+	j.Lock()
+	defer j.Unlock()
 
 	if j.status.Exited {
 		return nil
@@ -144,6 +148,7 @@ func (j *Job) Stop() error {
 	if err != nil {
 		return err
 	}
+
 	pgid, err := syscall.Getpgid(pid)
 	if err != nil {
 		return err
@@ -161,6 +166,8 @@ func (j *Job) Stop() error {
 // once the job completes. Multiple calls to this function will create separate channels
 // so it is safe to stream output to multiple clients.
 func (j *Job) Output() chan string {
+	j.Lock()
+	defer j.Unlock()
 	rd, err := j.outStreamer.NewReader()
 	if err != nil {
 		return nil
