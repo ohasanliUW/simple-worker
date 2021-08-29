@@ -106,18 +106,3 @@ func (s *JobSuite) TestOutput(c *check.C) {
 	c.Assert(actual1, check.Equals, expect)
 	c.Assert(actual2, check.Equals, expect)
 }
-
-// func startJob() *Job {
-// 	job := NewJob("../testdata/echo.sh")
-// 	job.Start()
-// 	return job
-// }
-
-// func (s *JobSuite) TestJob(c *check.C) {
-// 	j := startJob()
-// 	pid, _ := j.Pid()
-// 	fmt.Println(pid)
-// 	time.Sleep(time.Second * 2)
-// 	j = nil
-// 	time.Sleep(time.Second * 4)
-// }
