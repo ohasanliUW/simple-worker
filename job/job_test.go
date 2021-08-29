@@ -2,7 +2,6 @@ package job
 
 import (
 	"fmt"
-	"log"
 	"testing"
 	"time"
 
@@ -22,15 +21,12 @@ func (s *JobSuite) TestGoodStart(c *check.C) {
 	good_job := NewJob(good_command)
 	c.Assert(good_job, check.NotNil)
 
-	log.Println("1. Starting job")
 	good_job.Start()
 
-	log.Println("1. Waiting job")
 	good_job.Wait()
 	pid, err := good_job.Pid()
 	c.Assert(err, check.IsNil)
 	c.Assert(pid, check.Not(check.Equals), -1)
-	log.Println("1. Getting Status of job")
 	good_status := good_job.Status()
 	c.Assert(good_status.Exited, check.Equals, true)
 	c.Assert(good_status.ExitCode, check.Equals, 0)
@@ -41,9 +37,7 @@ func (s *JobSuite) TestBadStart(c *check.C) {
 	bad_command := "maluba 123"
 	bad_job := NewJob(bad_command)
 	c.Assert(bad_job, check.NotNil)
-	log.Println("2. Starting job")
 	bad_job.Start()
-	log.Println("2. Waiting job")
 	bad_job.Wait()
 	c.Assert(bad_job.status.Exited, check.Equals, true)
 }
@@ -52,7 +46,6 @@ func (s *JobSuite) TestStop(c *check.C) {
 	job := NewJob("sleep 100")
 	c.Assert(job, check.NotNil)
 
-	log.Println("3. Starting job")
 	job.Start()
 	//wait for few milliseconds then stop the job.
 	time.Sleep(time.Millisecond * 100)
@@ -62,12 +55,9 @@ func (s *JobSuite) TestStop(c *check.C) {
 	c.Assert(pid, check.Not(check.Equals), -1)
 	c.Assert(job.Status().Exited, check.Equals, false)
 
-	log.Println("3. Stopping job")
 	err = job.Stop()
-	log.Println("3. Waiting job")
 	job.Wait()
 	c.Assert(err, check.IsNil)
-	log.Println("3. Getting Status")
 	c.Assert(job.Status().Exited, check.Equals, true)
 }
 
