@@ -12,13 +12,15 @@ services:
     ports:
       - 50051:50051
 
-  client:
+  client1:
     build: clnt
-    volumes:
-      - .:/go/src/simple-worker
+#    volumes:
+#      - .:/go/src/simple-worker
 
     command: >
       /bin/sh -c "cp /go/src/simple-worker/certs/rootCA.crt /etc/ssl/certs/
+      && export CLIENT_KEY_PATH=certs/client1.key
+      && export CLIENT_CERT_PATH=certs/client1.crt
       && go build clnt/client.go
       && ./client start -c \"echo Client is UP\"
       && tail -f /dev/null"
@@ -26,4 +28,18 @@ services:
     depends_on:
       - server
 
+  client2:
+    build: clnt
+#    volumes:
+#      - .:/go/src/simple-worker
 
+    command: >
+      /bin/sh -c "cp /go/src/simple-worker/certs/rootCA.crt /etc/ssl/certs/
+      && export CLIENT_KEY_PATH=certs/client2.key
+      && export CLIENT_CERT_PATH=certs/client2.crt
+      && go build clnt/client.go
+      && ./client start -c \"echo Client is UP\"
+      && tail -f /dev/null"
+
+    depends_on:
+      - server

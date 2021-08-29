@@ -190,7 +190,7 @@ func configureOutputCommand(app *kingpin.Application) {
 
 // Server connection details
 const (
-	serverAddr = "server"
+	serverAddr = "localhost"
 	serverPort = "50051"
 )
 
@@ -210,22 +210,25 @@ func connect() (*grpc.ClientConn, pb.WorkerClient, error) {
 }
 
 // function to load certificate and private key pair
+// TODO: this function uses hard coded values for key pairs.
 func loadKeyPair() credentials.TransportCredentials {
-	log.Printf("Loading client certificate and key")
-	cert, err := tls.LoadX509KeyPair("certs/client1.crt", "certs/client1.key")
+	certPath := "certs/client.crt"
+	keyPath := "certs/client.key"
+
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		panic("Failed to load server certificate")
+		log.Fatalln("Failed to load certificate:", certPath, keyPath)
 	}
 
 	log.Printf("Loading CA certificate")
 	ca_data, err := ioutil.ReadFile("certs/rootCA.crt")
 	if err != nil {
-		panic("Failed to read root CA data")
+		log.Fatalln("Failed to read root CA data")
 	}
 
 	capool := x509.NewCertPool()
 	if !capool.AppendCertsFromPEM(ca_data) {
-		panic("Failed to add CA certificate")
+		log.Fatalln("Failed to add CA certificate")
 	}
 
 	tlsConfig := &tls.Config{
