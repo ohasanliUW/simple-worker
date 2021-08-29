@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -16,6 +19,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -42,7 +46,8 @@ func main() {
 		jobs: make(map[string]map[int64]*lib.Job),
 	}
 
-	gsrv := grpc.NewServer()
+	gsrv := grpc.NewServer(grpc.Creds(loadKeyPair()))
+
 	pb.RegisterWorkerServer(gsrv, srv)
 
 	go func() {
@@ -63,6 +68,31 @@ func main() {
 	<-stop
 	gsrv.GracefulStop()
 	log.Println("Server exiting gracefully")
+}
+
+func loadKeyPair() credentials.TransportCredentials {
+	cert, err := tls.LoadX509KeyPair("certs/server.crt", "certs/server.key")
+	if err != nil {
+		panic("Failed to load server certificate")
+	}
+
+	ca_data, err := ioutil.ReadFile("certs/rootCA.crt")
+	if err != nil {
+		panic("Failed to read root CA data")
+	}
+
+	capool := x509.NewCertPool()
+	if !capool.AppendCertsFromPEM(ca_data) {
+		panic("Failed to add CA certificate")
+	}
+
+	tlsConfig := &tls.Config{
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    capool,
+	}
+
+	return credentials.NewTLS(tlsConfig)
 }
 
 func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartResponse, error) {
