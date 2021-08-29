@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"net"
 	"os"
 	"time"
@@ -12,6 +16,7 @@ import (
 	pb "simple-worker/protobuf"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -185,7 +190,7 @@ func configureOutputCommand(app *kingpin.Application) {
 
 // Server connection details
 const (
-	serverAddr = "127.0.0.1"
+	serverAddr = "server"
 	serverPort = "50051"
 )
 
@@ -194,7 +199,7 @@ func connect() (*grpc.ClientConn, pb.WorkerClient, error) {
 
 	// setup insecure connection for now
 	// TODO: change this to use mTLS instead
-	conn, err := grpc.Dial(server, grpc.WithInsecure())
+	conn, err := grpc.Dial(server, grpc.WithTransportCredentials(loadKeyPair()))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -202,6 +207,34 @@ func connect() (*grpc.ClientConn, pb.WorkerClient, error) {
 	client := pb.NewWorkerClient(conn)
 
 	return conn, client, nil
+}
+
+// function to load certificate and private key pair
+func loadKeyPair() credentials.TransportCredentials {
+	log.Printf("Loading client certificate and key")
+	cert, err := tls.LoadX509KeyPair("certs/client1.crt", "certs/client1.key")
+	if err != nil {
+		panic("Failed to load server certificate")
+	}
+
+	log.Printf("Loading CA certificate")
+	ca_data, err := ioutil.ReadFile("certs/rootCA.crt")
+	if err != nil {
+		panic("Failed to read root CA data")
+	}
+
+	capool := x509.NewCertPool()
+	if !capool.AppendCertsFromPEM(ca_data) {
+		panic("Failed to add CA certificate")
+	}
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    capool,
+	}
+
+	log.Printf("loadKeyPair() success")
+	return credentials.NewTLS(tlsConfig)
 }
 
 func main() {

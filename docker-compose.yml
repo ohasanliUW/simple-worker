@@ -1,0 +1,29 @@
+services:
+  server:
+    build: srv
+    volumes:
+      - .:/go/src/simple-worker
+
+    command: >
+      /bin/sh -c "cp /go/src/simple-worker/certs/rootCA.crt /etc/ssl/certs/
+      && go build srv/server.go
+      && ./server"
+
+    ports:
+      - 50051:50051
+
+  client:
+    build: clnt
+    volumes:
+      - .:/go/src/simple-worker
+
+    command: >
+      /bin/sh -c "cp /go/src/simple-worker/certs/rootCA.crt /etc/ssl/certs/
+      && go build clnt/client.go
+      && ./client start -c \"echo Client is UP\"
+      && tail -f /dev/null"
+
+    depends_on:
+      - server
+
+

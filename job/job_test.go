@@ -61,7 +61,7 @@ func (s *JobSuite) TestStop(c *check.C) {
 }
 
 func (s *JobSuite) TestOutput(c *check.C) {
-	job := NewJob("../testdata/echo.sh")
+	job := NewJob("../testdata/echo.sh 5")
 	c.Assert(job, check.NotNil)
 
 	job.Start()
