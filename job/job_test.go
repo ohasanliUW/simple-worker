@@ -1,6 +1,7 @@
 package job
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -61,14 +62,15 @@ func (s *JobSuite) TestStop(c *check.C) {
 }
 
 func (s *JobSuite) TestOutput(c *check.C) {
-	job := NewJob("../testdata/echo.sh")
+	N := 5
+	job := NewJob(fmt.Sprintf("../testdata/echo.sh %v", N))
 	c.Assert(job, check.NotNil)
 
 	job.Start()
 
-	expect := 6  // expecting 6 lines of output
-	actual1 := 0 // actual lines from first readout
-	actual2 := 0 // actual lines from second readout
+	expect := N * 2 // expecting N lines of stdout and N lines of stderr output
+	actual1 := 0    // actual lines from first readout
+	actual2 := 0    // actual lines from second readout
 	ch1 := make(chan int)
 	ch2 := make(chan int)
 
