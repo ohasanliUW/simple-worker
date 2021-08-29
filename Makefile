@@ -1,6 +1,4 @@
-all: certs server client certs
-	make certs
-
+all: grpc docker
 
 certs:
 	$(MAKE) -C certs all
@@ -16,8 +14,11 @@ client:
 	go build clnt/client.go
 
 clean:
-	rm client server protobuf/*.pb.go
+	rm client server ||:
+	rm protobuf/*.pb.go ||:
 	$(MAKE) -C certs clean
+	docker stop worker
+	docker rm worker
 
 test: grpc
 	go test srv/*.go --count=1
