@@ -116,7 +116,7 @@ func (j *Job) Start() error {
 
 	// Channel will either return an error or will be closed and give nil error
 	// In any case, we need to return it back to the caller
-	err, _ = <-errC
+	err = <-errC
 
 	return err
 }
