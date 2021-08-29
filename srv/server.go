@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -123,8 +124,12 @@ func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartRespo
 func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse, error) {
 
 	job_id := in.GetJobId()
-	err := s.stopJob("dummy", job_id)
+	username, err := getUsername(ctx)
+	if err != nil {
+		return nil, err
+	}
 
+	err = s.stopJob(username, job_id)
 	if err != nil {
 		return nil, err
 	}
@@ -136,8 +141,12 @@ func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse
 
 func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusResponse, error) {
 	job_id := in.GetJobId()
+	username, err := getUsername(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	status, err := s.statusOfJob("dummy", job_id)
+	status, err := s.statusOfJob(username, job_id)
 	if err != nil {
 		return nil, err
 	}
@@ -152,8 +161,12 @@ func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusRe
 
 func (s *server) Output(in *pb.OutputRequest, stream pb.Worker_OutputServer) (err error) {
 	job_id := in.GetJobId()
+	username, err := getUsername(stream.Context())
+	if err != nil {
+		return err
+	}
 
-	streamC, err := s.outputOfJob("dummy", job_id)
+	streamC, err := s.outputOfJob(username, job_id)
 	if err != nil {
 		return err
 	}
@@ -265,6 +278,17 @@ func getNextLineBatch(streamC chan string, size int, d time.Duration) ([]string,
 			}
 		}
 	}
+}
+
+// get client name embedded into Common Name field for authorization
+func getUsername(ctx context.Context) (string, error) {
+	peer, ok := peer.FromContext(ctx)
+	if ok {
+		tlsInfo := peer.AuthInfo.(credentials.TLSInfo)
+		cn := tlsInfo.State.VerifiedChains[0][0].Subject.CommonName
+		return cn, nil
+	}
+	return "", errors.New("common name is missing in client certificate")
 }
 
 // returns AuthError if user with username is not authorized to take action
