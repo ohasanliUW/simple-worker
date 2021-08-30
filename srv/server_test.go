@@ -5,6 +5,7 @@ import (
 	lib "simple-worker/job"
 	"testing"
 
+	"github.com/google/uuid"
 	"gopkg.in/check.v1"
 )
 
@@ -16,7 +17,7 @@ func TestServer(t *testing.T) { check.TestingT(t) }
 
 func (s *ServerSuite) TestCreateJob(c *check.C) {
 	srv := &server{
-		jobs: make(map[string]map[int64]*lib.Job),
+		jobs: make(map[uuid.UUID]*lib.Job),
 	}
 
 	username := "alice"
@@ -29,7 +30,7 @@ func (s *ServerSuite) TestCreateJob(c *check.C) {
 
 func (s *ServerSuite) TestDenyCommand(c *check.C) {
 	srv := &server{
-		jobs: make(map[string]map[int64]*lib.Job),
+		jobs: make(map[uuid.UUID]*lib.Job),
 	}
 
 	alice := "alice"
@@ -40,7 +41,7 @@ func (s *ServerSuite) TestDenyCommand(c *check.C) {
 	c.Assert(job, check.NotNil)
 
 	bob := "bob"
-	err = srv.stopJob(bob, job.Id())
+	err = srv.stopJob(bob, job.UUID)
 
 	errType := reflect.TypeOf(err)
 	c.Assert(errType, check.Equals, reflect.TypeOf(&AuthError{}))
@@ -48,7 +49,7 @@ func (s *ServerSuite) TestDenyCommand(c *check.C) {
 
 func (s *ServerSuite) TestPermitCommand(c *check.C) {
 	srv := &server{
-		jobs: make(map[string]map[int64]*lib.Job),
+		jobs: make(map[uuid.UUID]*lib.Job),
 	}
 
 	alice := "alice"
@@ -58,7 +59,7 @@ func (s *ServerSuite) TestPermitCommand(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(job, check.NotNil)
 
-	err = srv.stopJob(alice, job.Id())
+	err = srv.stopJob(alice, job.UUID)
 
 	errType := reflect.TypeOf(err)
 	c.Assert(errType, check.Not(check.Equals), reflect.TypeOf(&AuthError{}))

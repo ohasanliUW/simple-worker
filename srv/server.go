@@ -12,11 +12,13 @@ import (
 	"os"
 	"os/signal"
 	lib "simple-worker/job"
+	"strings"
 	"syscall"
 	"time"
 
 	pb "simple-worker/protobuf"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -26,7 +28,7 @@ import (
 
 type server struct {
 	pb.UnimplementedWorkerServer
-	jobs map[string]map[int64]*lib.Job // all jobs created by server
+	jobs map[uuid.UUID]*lib.Job // all jobs created by server
 }
 
 // a custom error that will be returned when a request is not authorized
@@ -44,7 +46,7 @@ const (
 
 func main() {
 	srv := &server{
-		jobs: make(map[string]map[int64]*lib.Job),
+		jobs: make(map[uuid.UUID]*lib.Job),
 	}
 
 	gsrv := grpc.NewServer(grpc.Creds(loadKeyPair()))
@@ -97,7 +99,6 @@ func loadKeyPair() credentials.TransportCredentials {
 }
 
 func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartResponse, error) {
-
 	command := in.GetCommand()
 
 	if command == "" {
@@ -107,18 +108,25 @@ func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartRespo
 		)
 	}
 
-	job, err := s.startJob("dummy", command)
-
-	// Even though job.Start() fails, it is a valid job as it was successfully created.
-	// Seems gRPC does not send back response if error is not nil.
-	// Hence, we should return an error that has Job ID within its message
-	if job != nil && err != nil {
-		msg := fmt.Sprintf("Job ID %v: %v", job.Id(), err.Error())
-		err = errors.New(msg)
+	username, err := getUsername(ctx)
+	if err != nil {
+		return nil, err
 	}
+
+	job, err := s.startJob(username, command)
+	if err != nil {
+		// if job fails during exec.Cmd.Start(), then there is a
+		// job id associated with it. Add this id to error message
+		// before returning it
+		if job != nil {
+			err = errors.New(fmt.Sprintf("Job with ID %v: %v", job.UUID.String(), err.Error()))
+		}
+		return nil, err
+	}
+
 	return &pb.StartResponse{
-		JobId: job.Id(),
-	}, err
+		JobId: job.UUID[:],
+	}, nil
 }
 
 func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse, error) {
@@ -129,13 +137,19 @@ func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse
 		return nil, err
 	}
 
-	err = s.stopJob(username, job_id)
+	id := uuid.New()
+	err = id.UnmarshalBinary(job_id)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.stopJob(username, id)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pb.StopResponse{
-		Message: fmt.Sprintf("Successfully stopped job %v", job_id),
+		Message: fmt.Sprintf("Successfully stopped job %v", id.String()),
 	}, nil
 }
 
@@ -146,15 +160,16 @@ func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusRe
 		return nil, err
 	}
 
-	status, err := s.statusOfJob(username, job_id)
+	id := uuid.New()
+	err = id.UnmarshalBinary(job_id)
+	status, err := s.statusOfJob(username, id)
 	if err != nil {
 		return nil, err
 	}
 
 	return &pb.StatusResponse{
 		JobId:    job_id,
-		Status:   status.Status,
-		Exited:   status.Exited,
+		Status:   status.String(),
 		ExitCode: int32(status.ExitCode),
 	}, nil
 }
@@ -166,7 +181,9 @@ func (s *server) Output(in *pb.OutputRequest, stream pb.Worker_OutputServer) (er
 		return err
 	}
 
-	streamC, err := s.outputOfJob(username, job_id)
+	id := uuid.New()
+	err = id.UnmarshalBinary(job_id)
+	streamC, err := s.outputOfJob(username, id)
 	if err != nil {
 		return err
 	}
@@ -205,13 +222,20 @@ func (s *server) startJob(username string, command string) (*lib.Job, error) {
 	if job == nil {
 		return nil, errors.New("failed to create a job")
 	}
-	userJobs, exists := s.jobs[username]
-	if !exists {
-		s.jobs[username] = make(map[int64]*lib.Job)
-		userJobs = s.jobs[username]
-	}
-	userJobs[job.Id()] = job
 
+	// Special check whether UUID exists already. Disallow if so as we
+	// should never hit this (almost never: see uuid.NewRandom())
+	// TODO: Should handle this possibility by checking the existing list
+	// of jobs. As jobs are not managed by the library, I will skip this
+	// handling for now. Might need to handle the jobs internally in library
+	// to resolve this in a cleaner fashion.
+	_, exists := s.jobs[job.UUID]
+	if exists {
+		return nil, errors.New("server had a hick-up. Can you try again?")
+	}
+
+	job.SetUsername(username)
+	s.jobs[job.UUID] = job
 	if err := job.Start(); err != nil {
 		return job, err
 	}
@@ -219,35 +243,35 @@ func (s *server) startJob(username string, command string) (*lib.Job, error) {
 	return job, nil
 }
 
-func (s *server) stopJob(username string, job_id int64) error {
+func (s *server) stopJob(username string, job_id uuid.UUID) error {
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
 		return authErr
 	}
 
-	job := s.jobs[username][job_id]
+	job := s.jobs[job_id]
 	err := job.Stop()
 	return err
 }
 
-func (s *server) statusOfJob(username string, job_id int64) (lib.JobStatus, error) {
+func (s *server) statusOfJob(username string, job_id uuid.UUID) (lib.JobStatus, error) {
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
 		return lib.JobStatus{}, authErr
 	}
 
-	job := s.jobs[username][job_id]
+	job := s.jobs[job_id]
 	status := job.Status()
 	return status, nil
 }
 
-func (s *server) outputOfJob(username string, job_id int64) (chan string, error) {
+func (s *server) outputOfJob(username string, job_id uuid.UUID) (chan string, error) {
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
 		return nil, authErr
 	}
 
-	job := s.jobs[username][job_id]
+	job := s.jobs[job_id]
 	outStreamC := job.Output()
 
 	if outStreamC == nil {
@@ -293,19 +317,18 @@ func getUsername(ctx context.Context) (string, error) {
 
 // returns AuthError if user with username is not authorized to take action
 // on a job with job_id
-func (s *server) authorize(username string, job_id int64) error {
+func (s *server) authorize(username string, job_id uuid.UUID) error {
 	// find job
-	userJobs, exists := s.jobs[username]
+	job, exists := s.jobs[job_id]
 	if !exists {
 		return &AuthError{
 			fmt.Sprintf("job id %v not found", job_id),
 		}
 	}
 
-	_, exists = userJobs[job_id]
-	if !exists {
+	if strings.Compare(job.Username(), username) != 0 {
 		return &AuthError{
-			fmt.Sprintf("job id %v not found", job_id),
+			fmt.Sprintf("job id %v not found2", job_id),
 		}
 	}
 

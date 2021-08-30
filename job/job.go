@@ -3,6 +3,7 @@ package job
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -25,17 +26,35 @@ type Job struct {
 	username    string //owner of the job
 }
 
-type JobStatus struct {
-	Status   string // string representation of the status
-	Exited   bool   // job as exited (true) or not (false)
-	ExitCode int    // exit code of the job; meaningless if not exited
+// Job status is one of:
+// 	INIT - job created but not started
+//	RUNNING - job Start()ed but not completed
+//	EXITED - job Start()ed and completed
+type StatusType int
 
-	started bool // flag to indicate that Start() was successful
+const (
+	INIT StatusType = iota
+	RUNNING
+	EXITED
+)
+
+type JobStatus struct {
+	Status   StatusType // string representation of the status
+	ExitCode int        // exit code of the job; meaningless if not exited
 }
 
 // String returns text describing current state of the job
 func (js JobStatus) String() string {
-	return js.Status
+	switch js.Status {
+	case INIT:
+		return fmt.Sprint("initialized")
+	case RUNNING:
+		return fmt.Sprint("running")
+	case EXITED:
+		return fmt.Sprintf("exited with exit code: %v", js.ExitCode)
+	default:
+		panic(fmt.Sprintf("Unknown status type (%v). Should never hit this case", js.Status))
+	}
 }
 
 type Streamer interface {
@@ -82,10 +101,8 @@ func NewJob(command string) *Job {
 		Mutex: &sync.Mutex{},
 		doneC: make(chan struct{}),
 		status: JobStatus{
-			Status:   "not running",
-			Exited:   false,
+			Status:   INIT,
 			ExitCode: 0,
-			started:  false,
 		},
 	}
 
@@ -95,7 +112,7 @@ func NewJob(command string) *Job {
 // Start starts the job. It will call Start() and Wait() on underlying
 // exec.Cmd. Any error will be reported to job's status
 func (j *Job) Start() error {
-
+	j.Lock()
 	// If job already started, return an error indicating so
 	if j.cmd.Process != nil {
 		return errors.New("job has already started")
@@ -103,9 +120,10 @@ func (j *Job) Start() error {
 
 	// If job has already exited, then disallow rerun
 	// NOTE: user can always create a new job with same command
-	if j.status.Exited {
+	if j.status.Status == EXITED {
 		return errors.New("job has exited; cannot restart")
 	}
+	j.Unlock()
 
 	// If creating a file to store output fails, don't run the job
 	// TODO: this is not ideal solution. Ideally, we want to fall
@@ -143,17 +161,10 @@ func (j *Job) Status() JobStatus {
 // Stop terminates a running job. Returns immediately if job has already exited
 func (j *Job) Stop() error {
 	j.Lock()
-	defer j.Unlock()
-
-	if j.status.Exited {
+	if j.status.Status == EXITED {
 		return nil
 	}
-
-	// if job has not started yet, simply mark it exited
-	if !j.status.started {
-		j.status.Exited = true
-
-	}
+	j.Unlock()
 
 	pid, err := j.Pid()
 	if err != nil {
@@ -197,6 +208,8 @@ func (j *Job) Wait() {
 
 // Pid returns the PID of underlying process
 func (j *Job) Pid() (int, error) {
+	j.Lock()
+	defer j.Unlock()
 	if j.cmd.Process == nil {
 		return -1, errors.New("job has not started yet")
 	}
@@ -225,7 +238,7 @@ func (j *Job) startStream(rd io.ReadCloser, stream chan string) {
 	for {
 		line, err := brd.ReadString('\n')
 		if err == io.EOF {
-			if j.Status().Exited {
+			if j.Status().Status == EXITED {
 				break
 			}
 			// at this point, job is still running even though we
@@ -248,16 +261,14 @@ func (j *Job) start(errC chan error) {
 	var err error
 	defer func() {
 		j.Lock()
-		j.status.Exited = true
+		// job has finished, mark it EXITED
+		j.status.Status = EXITED
 
 		if j.cmd.ProcessState != nil {
-			j.status.Status = j.cmd.ProcessState.String()
 			j.status.ExitCode = j.cmd.ProcessState.ExitCode()
 		} else if err != nil {
-			j.status.Status = err.Error()
 			j.status.ExitCode = -1
 		} else {
-			j.status.Status = "completed"
 			j.status.ExitCode = 0
 		}
 
@@ -285,9 +296,7 @@ func (j *Job) start(errC chan error) {
 	close(errC)
 
 	j.Lock()
-	j.status.Status = "running"
-	j.status.Exited = false
-	j.status.started = true
+	j.status.Status = RUNNING
 	j.Unlock()
 
 	// Note: errC error channel will not be used for Wait(). Purpose of

@@ -28,7 +28,7 @@ func (s *JobSuite) TestGoodStart(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(pid, check.Not(check.Equals), -1)
 	good_status := good_job.Status()
-	c.Assert(good_status.Exited, check.Equals, true)
+	c.Assert(good_status.Status, check.Equals, EXITED)
 	c.Assert(good_status.ExitCode, check.Equals, 0)
 }
 
@@ -39,7 +39,8 @@ func (s *JobSuite) TestBadStart(c *check.C) {
 	c.Assert(bad_job, check.NotNil)
 	bad_job.Start()
 	bad_job.Wait()
-	c.Assert(bad_job.status.Exited, check.Equals, true)
+	c.Assert(bad_job.Status().Status, check.Equals, EXITED)
+	c.Assert(bad_job.Status().ExitCode, check.Equals, -1)
 }
 
 func (s *JobSuite) TestStop(c *check.C) {
@@ -53,12 +54,12 @@ func (s *JobSuite) TestStop(c *check.C) {
 	pid, err := job.Pid()
 	c.Assert(err, check.IsNil)
 	c.Assert(pid, check.Not(check.Equals), -1)
-	c.Assert(job.Status().Exited, check.Equals, false)
+	c.Assert(job.Status().Status, check.Equals, RUNNING)
 
 	err = job.Stop()
 	job.Wait()
 	c.Assert(err, check.IsNil)
-	c.Assert(job.Status().Exited, check.Equals, true)
+	c.Assert(job.Status().Status, check.Equals, EXITED)
 }
 
 func (s *JobSuite) TestOutput(c *check.C) {
