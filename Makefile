@@ -19,7 +19,7 @@ clean:
 	$(MAKE) -C certs clean
 
 test: grpc
-	go test srv/*.go --count=1
-	go test job/*go --count=1
+	go test -race srv/*.go --count=1
+	go test -race job/*go --count=1
 
 .PHONY: all certs grpc

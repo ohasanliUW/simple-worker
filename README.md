@@ -2,22 +2,33 @@
 Teleport Code Challenge
 
 ### Build
-Build will generate protobuf code via `protoc` then start building a docker image for running services in Linux env.
 ```
 # build
 make all
-# server will be started automatically by Makefile
+```
+The above will build everything you need to run the server and client
+
+### Run server
+Simply:
+```
+./server
 ```
 
 ### Run client
+Check available options
 ```
-# call client to execute a script @ testdata/echo.sh
-docker exec -it worker ./client start -c "./testdata/echo.sh 1200"
+./client --help
+```
+`testdata/echo.sh` is a simple countdown script. It takes an integer as command line argument and counts down from that number to 1 by sleeping 1 second between each iteration. It also prints the current number to both stdout and stderr.
+To test output streaming via RPC, start a job that runs this script. 
+```
+# call client to execute the script @ testdata/echo.sh
+./client start -c "./testdata/echo.sh 120"
 ```
 Once the job starts, use printed job id to stream output.
 NOTE: Multiple clients can stream simultanously as long as certificates being used is associated with the same username (embedded into CN  field); try output command below in two different terminal windows.
 ```
-docker exec -it worker ./client output -j <job-id>
+./client output -j <job-id>
 ```
 
 ### Run go tests
