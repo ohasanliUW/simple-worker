@@ -77,7 +77,7 @@ func (s *JobSuite) TestOutput(c *check.C) {
 
 	// readHandle is a function that will read from channel
 	// and count number of lines till channel is closed
-	readHandle := func(s chan string, outC chan int) {
+	readHandle := func(s chan []byte, outC chan int) {
 		counter := 0
 		for {
 			_, open := <-s

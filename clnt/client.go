@@ -127,7 +127,7 @@ func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
 	if err = id.UnmarshalBinary(job_id); err != nil {
 		return err
 	}
-	
+
 	if status == "running" {
 		fmt.Printf("Job %v: %v\n", id.String(), status)
 	} else {

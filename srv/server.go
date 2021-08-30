@@ -265,7 +265,7 @@ func (s *server) statusOfJob(username string, job_id uuid.UUID) (lib.JobStatus, 
 	return status, nil
 }
 
-func (s *server) outputOfJob(username string, job_id uuid.UUID) (chan string, error) {
+func (s *server) outputOfJob(username string, job_id uuid.UUID) (chan []byte, error) {
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
 		return nil, authErr
@@ -281,8 +281,8 @@ func (s *server) outputOfJob(username string, job_id uuid.UUID) (chan string, er
 	return outStreamC, nil
 }
 
-func getNextLineBatch(streamC chan string, size int, d time.Duration) ([]string, bool) {
-	batch := make([]string, 0, size)
+func getNextLineBatch(streamC chan []byte, size int, d time.Duration) ([][]byte, bool) {
+	batch := make([][]byte, 0, size)
 	count := 0
 
 	for {

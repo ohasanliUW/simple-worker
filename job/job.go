@@ -187,7 +187,7 @@ func (j *Job) Stop() error {
 // Output returns a string channel which will be closed by library internally
 // once the job completes. Multiple calls to this function will create separate channels
 // so it is safe to stream output to multiple clients.
-func (j *Job) Output() chan string {
+func (j *Job) Output() chan []byte {
 	j.Lock()
 	defer j.Unlock()
 	rd, err := j.outStreamer.NewReader()
@@ -196,7 +196,7 @@ func (j *Job) Output() chan string {
 	}
 
 	// create streaming channel and start pushing
-	stream := make(chan string)
+	stream := make(chan []byte)
 	go j.startStream(rd, stream)
 	return stream
 }
@@ -232,11 +232,11 @@ func (j *Job) Username() string {
 
 // startStream takes a ReadCloser and reads data line by line
 // then pushes them into the provided channel until Job is exited
-func (j *Job) startStream(rd io.ReadCloser, stream chan string) {
+func (j *Job) startStream(rd io.ReadCloser, stream chan []byte) {
 	defer close(stream)
 	brd := bufio.NewReader(rd)
 	for {
-		line, err := brd.ReadString('\n')
+		line, err := brd.ReadBytes('\n')
 		if err == io.EOF {
 			if j.Status().Status == EXITED {
 				break

@@ -46,5 +46,5 @@ message OutputRequest {
 }
 
 message OutputResponse {
-  repeated string output_line = 1;
+  repeated bytes output_line = 1;
 }
