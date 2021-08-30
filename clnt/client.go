@@ -15,10 +15,14 @@ import (
 
 	pb "simple-worker/protobuf"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
+
+var conn *grpc.ClientConn
+var client pb.WorkerClient
 
 //  Start command
 type StartCommand struct {
@@ -28,11 +32,11 @@ type StartCommand struct {
 // takes parsed command line arguments and makes a Start() RPC call to the server
 func (cc *StartCommand) run(c *kingpin.ParseContext) error {
 
-	conn, client, err := connect()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+	// conn, client, err := connect()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer conn.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -63,22 +67,27 @@ func configureStartCommand(app *kingpin.Application) {
 
 //  Stop command
 type StopCommand struct {
-	JobId int
+	JobId string
 }
 
 // takes parsed command line arguments and makes a Stop() RPC call to the server
 func (cc *StopCommand) run(c *kingpin.ParseContext) error {
-	conn, client, err := connect()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+	// conn, client, err := connect()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer conn.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	id := uuid.New()
+	if err := id.UnmarshalText([]byte(cc.JobId)); err != nil {
+		return err
+	}
+
 	resp, err := client.Stop(ctx, &pb.StopRequest{
-		JobId: int64(cc.JobId),
+		JobId: id[:],
 	})
 
 	if err != nil {
@@ -92,27 +101,32 @@ func (cc *StopCommand) run(c *kingpin.ParseContext) error {
 func configureStopCommand(app *kingpin.Application) {
 	c := &StopCommand{}
 	cc := app.Command("stop", "Stop a job at remote server").Action(c.run)
-	cc.Flag("job", "Job ID of the job").Required().Short('j').IntVar(&c.JobId)
+	cc.Flag("job", "Job ID of the job").Required().Short('j').StringVar(&c.JobId)
 }
 
 //  Status command
 type StatusCommand struct {
-	JobId int
+	JobId string
 }
 
 // takes parsed command line arguments and makes a Status() RPC call to the server
 func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
-	conn, client, err := connect()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+	// conn, client, err := connect()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer conn.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	id := uuid.New()
+	if err := id.UnmarshalText([]byte(cc.JobId)); err != nil {
+		return err
+	}
+
 	resp, err := client.Status(ctx, &pb.StatusRequest{
-		JobId: int64(cc.JobId),
+		JobId: id[:],
 	})
 
 	if err != nil {
@@ -121,41 +135,46 @@ func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
 
 	job_id := resp.GetJobId()
 	status := resp.GetStatus()
-	exited := resp.GetExited()
 	exitCode := resp.GetExitCode()
 
-	if !exited {
-		fmt.Printf("Job %v: %v\n", job_id, status)
-	} else {
-		fmt.Printf("Job %v: %v, Exit Code %v\n", job_id, status, exitCode)
-	}
+	// TODO: fix the output
+	//if !exited {
+	//	fmt.Printf("Job %v: %v\n", job_id, status)
+	//} else {
+	fmt.Printf("Job %v: %v, Exit Code %v\n", job_id, status, exitCode)
+	//}
 	return nil
 }
 
 func configureStatusCommand(app *kingpin.Application) {
 	c := &StatusCommand{}
 	cc := app.Command("status", "Get status of a job at remote server").Action(c.run)
-	cc.Flag("job", "Job ID of the job").Required().Short('j').IntVar(&c.JobId)
+	cc.Flag("job", "Job ID of the job").Required().Short('j').StringVar(&c.JobId)
 }
 
 //  Output command
 type OutputCommand struct {
-	JobId int
+	JobId string
 }
 
 // takes parsed command line arguments and makes an Output() RPC call to the server
 func (cc *OutputCommand) run(c *kingpin.ParseContext) error {
-	conn, client, err := connect()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+	// conn, client, err := connect()
+	// if err != nil {
+	// 	return err
+	// }
+	// defer conn.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	id := uuid.New()
+	if err := id.UnmarshalText([]byte(cc.JobId)); err != nil {
+		return err
+	}
+
 	stream, err := client.Output(ctx, &pb.OutputRequest{
-		JobId: int64(cc.JobId),
+		JobId: id[:],
 	})
 
 	if err != nil {
@@ -185,7 +204,7 @@ func (cc *OutputCommand) run(c *kingpin.ParseContext) error {
 func configureOutputCommand(app *kingpin.Application) {
 	c := &OutputCommand{}
 	cc := app.Command("output", "Get output of a job at remote server").Action(c.run)
-	cc.Flag("job_id", "Job ID of the job").Required().Short('j').IntVar(&c.JobId)
+	cc.Flag("job_id", "Job ID of the job").Required().Short('j').StringVar(&c.JobId)
 }
 
 // Server connection details
@@ -241,6 +260,15 @@ func loadKeyPair() credentials.TransportCredentials {
 }
 
 func main() {
+	var err error
+
+	conn, client, err = connect()
+	if err != nil {
+		fmt.Printf("Failed: %v\n", err.Error())
+		return
+	}
+	defer conn.Close()
+
 	app := kingpin.New("client", "Client application to schedule jobs in remote server")
 	configureStartCommand(app)
 	configureStopCommand(app)
