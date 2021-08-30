@@ -179,7 +179,7 @@ func (cc *OutputCommand) run(c *kingpin.ParseContext) error {
 
 		// for each received line, simply print it
 		for _, line := range resp.OutputLine {
-			fmt.Print(line)
+			fmt.Print(string(line))
 		}
 	}
 	return nil
