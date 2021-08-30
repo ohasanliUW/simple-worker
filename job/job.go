@@ -27,13 +27,13 @@ type Job struct {
 }
 
 // Job status is one of:
-// 	INIT - job created but not started
+// 	SCHEDULED - job created but not started
 //	RUNNING - job Start()ed but not completed
 //	EXITED - job Start()ed and completed
 type StatusType int
 
 const (
-	INIT StatusType = iota
+	SCHEDULED StatusType = iota
 	RUNNING
 	EXITED
 )
@@ -46,8 +46,8 @@ type JobStatus struct {
 // String returns text describing current state of the job
 func (js JobStatus) String() string {
 	switch js.Status {
-	case INIT:
-		return fmt.Sprint("initialized")
+	case SCHEDULED:
+		return fmt.Sprint("scheduled")
 	case RUNNING:
 		return fmt.Sprint("running")
 	case EXITED:
@@ -101,7 +101,7 @@ func NewJob(command string) *Job {
 		Mutex: &sync.Mutex{},
 		doneC: make(chan struct{}),
 		status: JobStatus{
-			Status:   INIT,
+			Status:   SCHEDULED,
 			ExitCode: 0,
 		},
 	}

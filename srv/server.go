@@ -328,7 +328,7 @@ func (s *server) authorize(username string, job_id uuid.UUID) error {
 
 	if strings.Compare(job.Username(), username) != 0 {
 		return &AuthError{
-			fmt.Sprintf("job id %v not found2", job_id),
+			fmt.Sprintf("job id %v not found", job_id),
 		}
 	}
 

@@ -20,7 +20,6 @@ message StartRequest {
 
 message StartResponse {
   bytes job_id = 1;
-  string message = 2;
 }
 
 message StopRequest {
