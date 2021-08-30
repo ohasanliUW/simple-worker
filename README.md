@@ -17,22 +17,30 @@ This library will provide all the utilities needed to `Create`, `Stop`, `GetStat
 ### Data structures
 ```go
 type Job struct {
-	Id		int64
-
-	cmd    *exec.Cmd
-	status JobStatus	// Status of this Job
-	*sync.Mutex			// to protect Status from simultaneous reads and writes
-	outStream Streamer	// used for creating streaming channel via Output()
-	doneC     chan struct{} // channel for user to block until job exits
+	UUID        uuid.UUID // unique identifier via google/uuid
+	*sync.Mutex           // to protect some of data from simultaneous reads and writes
+	cmd         *exec.Cmd
+	outStreamer Streamer
+	status      JobStatus // current status of this job
+	doneC       chan struct{}
+	username    string //owner of the job
 }
 
-type JobStatus {
-	Status string  // string representation of current status
-	Exited bool    // true if job has exited
-	ExitCode int   // exit code of the exited job
+// Job status is one of:
+// 	INIT - job created but not started
+//	RUNNING - job Start()ed but not completed
+//	EXITED - job Start()ed and completed
+type StatusType int
 
-	started bool   // true if Start() was successful
-	// extend as needed
+const (
+	INIT StatusType = iota
+	RUNNING
+	EXITED
+)
+
+type JobStatus struct {
+	Status   StatusType // string representation of the status
+	ExitCode int        // exit code of the job; meaningless if not exited
 }
 
 type Streamer interface {
@@ -71,10 +79,10 @@ func (j* Job) Start() error {}
 func (j *Job) Status() JobStatus {}
 // Stop terminates a running job. Does nothing if job has already stopped.
 func (j *Job) Stop() error {}
-// Output returns a string channel which will be closed by library internally
+// Output returns a []byte channel which will be closed by library internally
 // once the job completes. Multiple calls to this function will create separate channels
 // so it is safe to stream output to multiple clients.
-func (j *Job) Output() chan string {}
+func (j *Job) Output() chan []byte {}
 // Pid returns PID of process running the job.
 // If no such process exist, an error will be returned.
 func (j *Job) Pid() (int, error) {}
@@ -91,8 +99,7 @@ service Worker {
   rpc Stop(StopRequest) returns (StopResponse) {}
   // Gets status of a job
   rpc Status(StatusRequest) returns (StatusResponse) {}
-  // Get output of a job. If job is still running, it will stream
-  // the output
+  // List all jobs
   rpc Output(OutputRequest) returns (stream OutputResponse) {}
 }
 
@@ -101,11 +108,11 @@ message StartRequest {
 }
 
 message StartResponse {
-  string command = 1;
+  bytes job_id = 1;
 }
 
 message StopRequest {
-  int32 job_id = 1;
+  bytes job_id = 1;
 }
 
 message StopResponse {
@@ -113,34 +120,33 @@ message StopResponse {
 }
 
 message StatusRequest {
-  int32 job_id = 1;
+  bytes job_id = 1;
 }
 
 message StatusResponse {
-  int32 job_id = 1;
+  bytes job_id = 1;
   string status = 2;
-  bool exited = 3;
   int32 exit_code = 4;
 }
 
 message OutputRequest {
-  int32 job_id = 1;
+  bytes job_id = 1;
 }
 
 message OutputResponse {
-  repeated string output_line = 1;
+  repeated bytes output_line = 1;
 }
 ```
-1. **`Start`** will send various commands batched into a single RPC to the server and server will create `Job` for each command and send back a batch of status response.
-1. **`Stop`** will and RPC with a single job id to a server and server will stop the specified job if authorization is successful. A response will be sent back with an appropriate message.
+1. **`Start`** will send a single command to server and will receive a response containing a job id.
+1. **`Stop`** will send an RPC with a single job id to a server and server will stop the specified job if successfully authorized. A response will be sent back with an appropriate message.
 `- successfully stopped job with id <id>`
 `- error: job id not found`
 If authorization fails for a running job, then instead of admitting that "such job exists but failed to authorize for stopping it", it is better to simply to say `job id not found`. Similar to how entering wrong password for a valid email tells that `username or password is incorrect` rather than saying that `password is incorrect`.
 
-1. **`Status`**, will request for currrert status/state of a job and server will send back a response containing its state, exit code and some human readable message (`scheduled`, `running`, `completed`, etc.)
-1. **`Output`** will request for output of a single job and server will stream its output back line by line.
+1. **`Status`**, will request for currrert status/state of a job and server will send back a response containing its state, exit code and some human readable message (`scheduled`, `running`, `completed`)
+1. **`Output`** will request for output of a single job and server will stream its output back line by line as a stream of []byte. It will handle both UTF-8 and non-UTF-8 bytes.
 Note: It will always stream from the start of the job; no matter how many times requested. If job is complete, it will stream all the way to the end. If job is still running, it will wait for new data to arrive until server completes the stream. Behaviour will be similar to of `tail -f`.
-To optimize the performance a little, `OutputResponse` will consist of a string slice `[]string`. Server will try to batch up to `N` lines of output (`N` can be any reasonable number: 10, 20, 30, etc.) and send them with a single RPC response to reduce the number of calls needed over the network to complete the task. If the channel feeding the information does not have `N` lines of output, server will not wait and instead send whatever it has batched into the response.
+To optimize the performance a little, `OutputResponse` will consist of a slice of byte slice `[][]byte`. Server will try to batch up to `N` lines of output (`N` can be any reasonable number: 10, 20, 30, etc.) and send them with a single RPC response to reduce the number of calls needed over the network to complete the task. If the channel feeding the information does not have `N` lines of output, server will not wait and instead send whatever it has batched into the response.
 
 
 ### Authentication
@@ -149,8 +155,8 @@ Communication channels between clients and server will be protected via mutual T
 ### Authorization Scheme
 For simplicity, each client certificate will embed client's username in `Common Name` field. Server. will extract this information and authorize RPCs on existing jobs if and only if it belongs to that user.
 Server will record each created Job in a map data structure. It will look like this:
-`map[string]map[int]*Job`
-I.e, username -> Job ID -> Job
+`map[uuid.UUID]*Job`
+As each `Job` has `username` field, server will compare the extracted username against the username in the Job.
 
 If authorization fails for a running job, then instead of admitting that "such job exists but failed to authorize for stopping it", it is better to simply to say `job id not found`. Similar to how entering wrong password for a valid email tells that `username or password is incorrect` rather than saying that `password is incorrect`.
 
@@ -184,10 +190,23 @@ Commands:
 ```
 
 ### Usage
-1. Start:	 `client start -c "echo Hello World"`
-2. Status: `client status -j 1234`
-3. Stop:    `client stop -j 1234`
-4. Output:`client output -j 1234`
+1. Start:
+```
+$ client start -c "echo Hello World"
+Successfully started Job. Job ID a2eddd4f-76df-43b8-8cc9-b3e435cb6118
+```
+2. Status: 
+```
+$ client status -j a2eddd4f-76df-43b8-8cc9-b3e435cb6118
+Job a2eddd4f-76df-43b8-8cc9-b3e435cb6118: exited, Exit Code 0
+```
+3. Stop: 
+```
+$ client stop -j a2eddd4f-76df-43b8-8cc9-b3e435cb6118
+Successfully stopped job a2eddd4f-76df-43b8-8cc9-b3e435cb6118
+```
+
+5. Output:`client output -j a2eddd4f-76df-43b8-8cc9-b3e435cb6118`
 
 ## Testing
 All test cases will be implemented via packages `gopkg.in/check.v1` and `testing`.
