@@ -1,7 +1,7 @@
-all: grpc docker
+all: grpc server client certs
 
 certs:
-	$(MAKE) -C certs all
+	$(MAKE) -C certs
 grpc:
 	protoc --go_out=. --go_opt=paths=source_relative \
     		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
@@ -17,14 +17,9 @@ clean:
 	rm client server ||:
 	rm protobuf/*.pb.go ||:
 	$(MAKE) -C certs clean
-	docker stop worker
-	docker rm worker
 
 test: grpc
 	go test srv/*.go --count=1
 	go test job/*go --count=1
 
-
-docker:
-	sudo docker build -t worker .
-	docker run -d --name worker worker ./server
+.PHONY: all certs grpc

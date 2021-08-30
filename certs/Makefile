@@ -41,6 +41,8 @@ all:
 	openssl x509 -in client.crt -text -noout
 
 
+	sudo cp rootCA.crt /usr/local/share/ca-certificates/
+	sudo update-ca-certificates
 .PHONY: clean
 clean:
 	rm -f *.key *.crt *.csr *.conf
