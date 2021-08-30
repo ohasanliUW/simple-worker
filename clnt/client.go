@@ -31,13 +31,6 @@ type StartCommand struct {
 
 // takes parsed command line arguments and makes a Start() RPC call to the server
 func (cc *StartCommand) run(c *kingpin.ParseContext) error {
-
-	// conn, client, err := connect()
-	// if err != nil {
-	// 	return err
-	// }
-	// defer conn.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -54,7 +47,11 @@ func (cc *StartCommand) run(c *kingpin.ParseContext) error {
 
 	job_id := resp.GetJobId()
 
-	fmt.Printf("Successfully started Job. Job ID %v\n", job_id)
+	id := uuid.New()
+	if err = id.UnmarshalBinary(job_id); err != nil {
+		return err
+	}
+	fmt.Printf("Successfully started Job. Job ID %v\n", id.String())
 
 	return nil
 }
@@ -72,12 +69,6 @@ type StopCommand struct {
 
 // takes parsed command line arguments and makes a Stop() RPC call to the server
 func (cc *StopCommand) run(c *kingpin.ParseContext) error {
-	// conn, client, err := connect()
-	// if err != nil {
-	// 	return err
-	// }
-	// defer conn.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -111,11 +102,6 @@ type StatusCommand struct {
 
 // takes parsed command line arguments and makes a Status() RPC call to the server
 func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
-	// conn, client, err := connect()
-	// if err != nil {
-	// 	return err
-	// }
-	// defer conn.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -137,12 +123,16 @@ func (cc *StatusCommand) run(c *kingpin.ParseContext) error {
 	status := resp.GetStatus()
 	exitCode := resp.GetExitCode()
 
-	// TODO: fix the output
-	//if !exited {
-	//	fmt.Printf("Job %v: %v\n", job_id, status)
-	//} else {
-	fmt.Printf("Job %v: %v, Exit Code %v\n", job_id, status, exitCode)
-	//}
+	id = uuid.New()
+	if err = id.UnmarshalBinary(job_id); err != nil {
+		return err
+	}
+	
+	if status == "running" {
+		fmt.Printf("Job %v: %v\n", id.String(), status)
+	} else {
+		fmt.Printf("Job %v: %v, Exit Code %v\n", id.String(), status, exitCode)
+	}
 	return nil
 }
 
@@ -159,12 +149,6 @@ type OutputCommand struct {
 
 // takes parsed command line arguments and makes an Output() RPC call to the server
 func (cc *OutputCommand) run(c *kingpin.ParseContext) error {
-	// conn, client, err := connect()
-	// if err != nil {
-	// 	return err
-	// }
-	// defer conn.Close()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -239,7 +223,6 @@ func loadKeyPair() credentials.TransportCredentials {
 		log.Fatalln("Failed to load certificate:", certPath, keyPath)
 	}
 
-	log.Printf("Loading CA certificate")
 	ca_data, err := ioutil.ReadFile("certs/rootCA.crt")
 	if err != nil {
 		log.Fatalln("Failed to read root CA data")
@@ -255,7 +238,6 @@ func loadKeyPair() credentials.TransportCredentials {
 		ClientCAs:    capool,
 	}
 
-	log.Printf("loadKeyPair() success")
 	return credentials.NewTLS(tlsConfig)
 }
 

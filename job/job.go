@@ -51,7 +51,7 @@ func (js JobStatus) String() string {
 	case RUNNING:
 		return fmt.Sprint("running")
 	case EXITED:
-		return fmt.Sprintf("exited with exit code: %v", js.ExitCode)
+		return fmt.Sprint("exited")
 	default:
 		panic(fmt.Sprintf("Unknown status type (%v). Should never hit this case", js.Status))
 	}
