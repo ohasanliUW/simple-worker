@@ -11,15 +11,18 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Job struct {
-	*sync.Mutex // to protect some of data from simultaneous reads and writes
-	id          int64
+	UUID        uuid.UUID // unique identifier via google/uuid
+	*sync.Mutex           // to protect some of data from simultaneous reads and writes
 	cmd         *exec.Cmd
 	outStreamer Streamer
 	status      JobStatus // current status of this job
 	doneC       chan struct{}
+	username    string //owner of the job
 }
 
 type JobStatus struct {
@@ -63,11 +66,19 @@ func NewStreamer() (Streamer, error) {
 }
 
 // NewJob creates a job with specified command but does not start it
+// NOTE: uuid.NewRandom() returns almost unique value and has very low chance of
+// collision. So, for simplicity, regenerating the UUID in case of
+// collision will be skipped.
 func NewJob(command string) *Job {
 	args := strings.Split(command, " ")
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return nil
+	}
+
 	job := &Job{
 		cmd:   exec.Command(args[0], args[1:]...),
-		id:    time.Now().Unix(),
+		UUID:  id,
 		Mutex: &sync.Mutex{},
 		doneC: make(chan struct{}),
 		status: JobStatus{
@@ -184,17 +195,26 @@ func (j *Job) Wait() {
 	<-j.doneC
 }
 
-// Id returns the job id
-func (j *Job) Id() int64 {
-	return j.id
-}
-
 // Pid returns the PID of underlying process
 func (j *Job) Pid() (int, error) {
 	if j.cmd.Process == nil {
 		return -1, errors.New("job has not started yet")
 	}
 	return j.cmd.Process.Pid, nil
+}
+
+func (j *Job) SetUsername(username string) {
+	j.Lock()
+	defer j.Unlock()
+
+	j.username = username
+}
+
+func (j *Job) Username() string {
+	j.Lock()
+	defer j.Unlock()
+
+	return j.username
 }
 
 // startStream takes a ReadCloser and reads data line by line

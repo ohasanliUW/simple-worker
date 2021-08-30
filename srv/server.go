@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	lib "simple-worker/job"
+
+	"github.com/google/uuid"
 )
 
 type server struct {
-	jobs map[string]map[int64]*lib.Job // all jobs created by server
+	jobs map[uuid.UUID]*lib.Job // all jobs created by server
 }
 
 // a custom error that will be returned when a request is not authorized
@@ -32,12 +34,9 @@ func (s *server) createJob(username string, command string) (*lib.Job, error) {
 	if job == nil {
 		return nil, errors.New("failed to create a job")
 	}
-	userJobs, exists := s.jobs[username]
-	if !exists {
-		s.jobs[username] = make(map[int64]*lib.Job)
-		userJobs = s.jobs[username]
-	}
-	userJobs[job.Id()] = job
+
+	s.jobs[job.UUID] = job
+
 	return job, nil
 }
 
