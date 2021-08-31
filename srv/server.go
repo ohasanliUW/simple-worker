@@ -41,7 +41,7 @@ func (e *AuthError) Error() string {
 }
 
 const (
-	port = "localhost:50051"
+	port = ":50051"
 )
 
 func main() {
@@ -98,6 +98,9 @@ func loadKeyPair() credentials.TransportCredentials {
 	return credentials.NewTLS(tlsConfig)
 }
 
+// Start receives an RPC containing a command to execute.
+// On success, it will start the execution and respond with job id
+// On failure, it will return an error
 func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartResponse, error) {
 	command := in.GetCommand()
 
@@ -129,6 +132,9 @@ func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartRespo
 	}, nil
 }
 
+// Stop receives an RPC containing job id of the job to stop.
+// On success, job is stopped and client is responded with a message describing it
+// On failure, it will return an error
 func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse, error) {
 
 	job_id := in.GetJobId()
@@ -153,6 +159,9 @@ func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse
 	}, nil
 }
 
+// Status receives an RPC containing job id of the job to query
+// On success, it will respond to client with UUID, Status and ExitCode of the job
+// On failure, it will return an error
 func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusResponse, error) {
 	job_id := in.GetJobId()
 	username, err := getUsername(ctx)
@@ -174,6 +183,9 @@ func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusRe
 	}, nil
 }
 
+// Output receives an RPC containing  job id of the job
+// On success, it will start streaming output of the job to the client
+// On failure, it will return an error
 func (s *server) Output(in *pb.OutputRequest, stream pb.Worker_OutputServer) (err error) {
 	job_id := in.GetJobId()
 	username, err := getUsername(stream.Context())
@@ -234,6 +246,8 @@ func (s *server) startJob(username string, command string) (*lib.Job, error) {
 		return nil, errors.New("server had a hick-up. Can you try again?")
 	}
 
+	// set the username for this job. All other RPCs will check this field
+	// for authorizing the requested service for this job
 	job.SetUsername(username)
 	s.jobs[job.UUID] = job
 	if err := job.Start(); err != nil {
@@ -243,6 +257,8 @@ func (s *server) startJob(username string, command string) (*lib.Job, error) {
 	return job, nil
 }
 
+// stopJob attempts to stop the job with job_id. if username does not match
+// the username in this job, it will return an authorization error.
 func (s *server) stopJob(username string, job_id uuid.UUID) error {
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
@@ -254,6 +270,8 @@ func (s *server) stopJob(username string, job_id uuid.UUID) error {
 	return err
 }
 
+// statusOfJob will return status of specified job. If username does not match
+// the username in this job, it will return an authorization error
 func (s *server) statusOfJob(username string, job_id uuid.UUID) (lib.JobStatus, error) {
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
@@ -265,6 +283,8 @@ func (s *server) statusOfJob(username string, job_id uuid.UUID) (lib.JobStatus, 
 	return status, nil
 }
 
+// outputOfJob will return a channel of byte slices containing output of the job.
+// If username does not match the username in this job, it will return an authorization error
 func (s *server) outputOfJob(username string, job_id uuid.UUID) (chan []byte, error) {
 	authErr := s.authorize(username, job_id)
 	if authErr != nil {
@@ -281,6 +301,9 @@ func (s *server) outputOfJob(username string, job_id uuid.UUID) (chan []byte, er
 	return outStreamC, nil
 }
 
+// getNextLineBatch takes a channel of byte slices, number of max lines per batch needed,
+// and a delay to back off from waiting on channel, and returns slice of byte slices and
+// a boolean representing whether stream channel is closed
 func getNextLineBatch(streamC chan []byte, size int, d time.Duration) ([][]byte, bool) {
 	batch := make([][]byte, 0, size)
 	count := 0
@@ -288,15 +311,22 @@ func getNextLineBatch(streamC chan []byte, size int, d time.Duration) ([][]byte,
 	for {
 		select {
 		case <-time.After(d):
+			// couldn't get data in time, return whatever we have
+			// but indicate that we expect some more
 			return batch, false
 		case line, open := <-streamC:
 			if !open {
+				// received a signal that channel is closed. this means
+				// job has terminated  and no more output should be expected
+				// return whatever we have and indicate the end
 				return batch, true
 			}
 
+			// received some data. add it to the batch
 			batch = append(batch, line)
 			count += 1
 
+			// if batch is full, return it but indicate that there are some more
 			if count == size {
 				return batch, false
 			}
