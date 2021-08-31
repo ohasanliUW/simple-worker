@@ -144,8 +144,7 @@ func (s *server) Stop(ctx context.Context, in *pb.StopRequest) (*pb.StopResponse
 	}
 
 	id := uuid.New()
-	err = id.UnmarshalBinary(job_id)
-	if err != nil {
+	if err = id.UnmarshalBinary(job_id); err != nil {
 		return nil, err
 	}
 
@@ -170,7 +169,10 @@ func (s *server) Status(ctx context.Context, in *pb.StatusRequest) (*pb.StatusRe
 	}
 
 	id := uuid.New()
-	err = id.UnmarshalBinary(job_id)
+	if err = id.UnmarshalBinary(job_id); err != nil {
+		return nil, err
+	}
+
 	status, err := s.statusOfJob(username, id)
 	if err != nil {
 		return nil, err
@@ -194,7 +196,10 @@ func (s *server) Output(in *pb.OutputRequest, stream pb.Worker_OutputServer) (er
 	}
 
 	id := uuid.New()
-	err = id.UnmarshalBinary(job_id)
+	if err = id.UnmarshalBinary(job_id); err != nil {
+		return err
+	}
+
 	streamC, err := s.outputOfJob(username, id)
 	if err != nil {
 		return err
