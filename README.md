@@ -1,3 +1,4 @@
+
 # Teleport Code Challenge
 
 ### Build
@@ -40,8 +41,6 @@ Run
 go test -race job/*.go -v --count=1
 go test -race srv/*.go -v --count=1
 ```
-
-  
 
 # Design
 
