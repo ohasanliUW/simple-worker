@@ -34,15 +34,15 @@ all:
 		-out server.crt -days 360 -sha256 \
 		-extfile server.san.conf -extensions req_ext
 
-	openssl x509 -req -in client.csr -CA ./rootCA.crt -CAkey ./rootCA.key \
+	openssl x509 -req -in client.csr -CA ./rootCA.crt -CAcreateserial -CAkey ./rootCA.key \
 		-out client.crt -days 360 -sha256
 
 	openssl x509 -in server.crt -text -noout
 	openssl x509 -in client.crt -text -noout
 
 
-	sudo cp rootCA.crt /usr/local/share/ca-certificates/
-	sudo update-ca-certificates
+#	sudo cp rootCA.crt /usr/local/share/ca-certificates/
+#	sudo update-ca-certificates
 .PHONY: clean
 clean:
 	rm -f *.key *.crt *.csr *.conf

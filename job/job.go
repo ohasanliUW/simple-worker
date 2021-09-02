@@ -75,9 +75,9 @@ func (s *streamer) NewReader() (io.ReadCloser, error) {
 	return f, nil
 }
 
-// NewStreamer creates a streamer by creating a new file in /tmp
+// NewStreamer creates a streamer by creating a new file
 func NewStreamer() (Streamer, error) {
-	f, err := ioutil.TempFile("/tmp/", "job.*.log")
+	f, err := ioutil.TempFile("", "job.*.log")
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,6 @@ func (j *Job) Start() error {
 	if j.status.Status == EXITED {
 		return errors.New("job has exited; cannot restart")
 	}
-	j.Unlock()
 
 	// If creating a file to store output fails, don't run the job
 	// TODO: this is not ideal solution. Ideally, we want to fall
@@ -141,6 +140,8 @@ func (j *Job) Start() error {
 	// need to wait until result of Start() comes back so that we can
 	// immediately report it back to the caller
 	errC := make(chan error)
+	j.Unlock()
+
 	go j.start(errC)
 
 	// Channel will either return an error or will be closed and give nil error
@@ -233,11 +234,21 @@ func (j *Job) Username() string {
 // startStream takes a ReadCloser and reads data line by line
 // then pushes them into the provided channel until Job is exited
 func (j *Job) startStream(rd io.ReadCloser, stream chan []byte) {
-	defer close(stream)
+	defer func() {
+		close(stream)
+		rd.Close()
+	}()
+
 	brd := bufio.NewReader(rd)
 	for {
 		line, err := brd.ReadBytes('\n')
 		if err == io.EOF {
+			// if line buffer has data, we should write it to stream channel
+			// it is possible that output producer is slow and there is no
+			// new line byte when we get EOF.
+			if len(line) > 0 {
+				stream <- line
+			}
 			if j.Status().Status == EXITED {
 				break
 			}
@@ -272,6 +283,7 @@ func (j *Job) start(errC chan error) {
 			j.status.ExitCode = 0
 		}
 
+		j.outStreamer.Close()
 		j.Unlock()
 		// close the channel to indicate that Job has finished
 		close(j.doneC)

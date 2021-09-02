@@ -49,7 +49,10 @@ func main() {
 		jobs: make(map[uuid.UUID]*lib.Job),
 	}
 
-	gsrv := grpc.NewServer(grpc.Creds(loadKeyPair()))
+	gsrv := grpc.NewServer(
+		grpc.Creds(loadKeyPair()),
+		grpc.UnaryInterceptor(middlefunc),
+	)
 
 	pb.RegisterWorkerServer(gsrv, srv)
 
@@ -368,4 +371,16 @@ func (s *server) authorize(username string, job_id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func middlefunc(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	// get client tls info
+	if p, ok := peer.FromContext(ctx); ok {
+		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
+			for _, item := range mtls.State.PeerCertificates {
+				log.Println("request certificate subject:", item.Subject)
+			}
+		}
+	}
+	return handler(ctx, req)
 }

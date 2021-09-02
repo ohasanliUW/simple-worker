@@ -37,7 +37,7 @@ message StatusRequest {
 message StatusResponse {
   bytes job_id = 1;
   string status = 2;
-  int32 exit_code = 4;
+  int32 exit_code = 3;
 }
 
 message OutputRequest {
