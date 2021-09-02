@@ -196,7 +196,7 @@ func configureOutputCommand(app *kingpin.Application, client pb.WorkerClient) {
 		client: client,
 	}
 	cc := app.Command("output", "Get output of a job at remote server").Action(c.run)
-	cc.Flag("job_id", "Job ID of the job").Required().Short('j').StringVar(&c.JobId)
+	cc.Flag("job", "Job ID of the job").Required().Short('j').StringVar(&c.JobId)
 }
 
 // Server connection details
