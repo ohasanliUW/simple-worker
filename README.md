@@ -1,7 +1,49 @@
+# Teleport Code Challenge
+
+### Build
+```
+# build
+make all
+```
+The above will build everything you need to run the server and client
+
+### Run server
+Simply:
+```
+./server
+```
+
+### Run client
+Check available options
+```
+./client --help
+```
+`testdata/echo.sh` is a simple countdown script. It takes an integer as command line argument and counts down from that number to 1 by sleeping 1 second between each iteration. It also prints the current number to both stdout and stderr.
+To test output streaming via RPC, start a job that runs this script. 
+```
+# call client to execute the script @ testdata/echo.sh
+./client start -c "./testdata/echo.sh 120"
+```
+Once the job starts, use printed job id to stream output.
+NOTE: Multiple clients can stream simultanously as long as certificates being used is associated with the same username (embedded into CN  field); try output command below in two different terminal windows.
+```
+./client output -j <job-id>
+```
+
+### Run go tests
+There are two suites of tests
+1. Library
+2. Server
+
+Run
+```
+go test -race job/*.go -v --count=1
+go test -race srv/*.go -v --count=1
+```
 
   
 
-# Code Challenge - Teleport
+# Design
 
 Purpose of this project is to create a small service that is able to `Start`, `Stop`, get `Status` and stream `Output` of a Linux job. The complete package will consist of 3 main components:  
 1. Library to achieve above functionalities (used by server)  
@@ -213,9 +255,3 @@ All test cases will be implemented via packages `gopkg.in/check.v1` and `testing
 ### Library:
 For each of the exported functions, there will be a test to cover positive case. For some of them, I will add a negative test case to demonstrate how to achieve high code coverage.
 
-### gRPC and server
-One test case for successful authentication<br />
-One test case for failed authentication<br />
-One test case for successful authorization<br />
-One test case for failed authorization<br />
-One test case for networking (RPC can be sent and received)<br />
