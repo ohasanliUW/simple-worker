@@ -51,7 +51,6 @@ func main() {
 
 	gsrv := grpc.NewServer(
 		grpc.Creds(loadKeyPair()),
-		grpc.UnaryInterceptor(middlefunc),
 	)
 
 	pb.RegisterWorkerServer(gsrv, srv)
@@ -358,29 +357,11 @@ func getUsername(ctx context.Context) (string, error) {
 func (s *server) authorize(username string, job_id uuid.UUID) error {
 	// find job
 	job, exists := s.jobs[job_id]
-	if !exists {
+	if !exists || strings.Compare(job.Username(), username) != 0 {
 		return &AuthError{
-			fmt.Sprintf("job id %v not found", job_id),
-		}
-	}
-
-	if strings.Compare(job.Username(), username) != 0 {
-		return &AuthError{
-			fmt.Sprintf("job id %v not found", job_id),
+			"authorization failed",
 		}
 	}
 
 	return nil
-}
-
-func middlefunc(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-	// get client tls info
-	if p, ok := peer.FromContext(ctx); ok {
-		if mtls, ok := p.AuthInfo.(credentials.TLSInfo); ok {
-			for _, item := range mtls.State.PeerCertificates {
-				log.Println("request certificate subject:", item.Subject)
-			}
-		}
-	}
-	return handler(ctx, req)
 }
