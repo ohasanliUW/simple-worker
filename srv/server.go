@@ -125,7 +125,7 @@ func (s *server) Start(ctx context.Context, in *pb.StartRequest) (*pb.StartRespo
 		// job id associated with it. Add this id to error message
 		// before returning it
 		if job != nil {
-			err = errors.New(fmt.Sprintf("Job with ID %v: %v", job.UUID.String(), err.Error()))
+			err = fmt.Errorf("job with ID %v: %v", job.UUID.String(), err.Error())
 		}
 		return nil, err
 	}
