@@ -241,7 +241,7 @@ func loadKeyPair() credentials.TransportCredentials {
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		ClientCAs:    capool,
+		RootCAs:      capool,
 	}
 
 	return credentials.NewTLS(tlsConfig)
