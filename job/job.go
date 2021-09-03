@@ -1,7 +1,6 @@
 package job
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -47,18 +46,18 @@ type JobStatus struct {
 func (js JobStatus) String() string {
 	switch js.Status {
 	case SCHEDULED:
-		return fmt.Sprint("scheduled")
+		return "scheduled"
 	case RUNNING:
-		return fmt.Sprint("running")
+		return "running"
 	case EXITED:
-		return fmt.Sprint("exited")
+		return fmt.Sprintf("exited: %v", js.ExitCode)
 	default:
 		panic(fmt.Sprintf("Unknown status type (%v). Should never hit this case", js.Status))
 	}
 }
 
 type Streamer interface {
-	io.WriteCloser
+	io.ReadWriteCloser
 	NewReader() (io.ReadCloser, error)
 }
 
@@ -234,21 +233,23 @@ func (j *Job) Username() string {
 // startStream takes a ReadCloser and reads data line by line
 // then pushes them into the provided channel until Job is exited
 func (j *Job) startStream(rd io.ReadCloser, stream chan []byte) {
+	const MAX_READ_BUF_SIZE = 512 // read output as maximum of 512 bytes of chunks
+
 	defer func() {
 		close(stream)
 		rd.Close()
 	}()
 
-	brd := bufio.NewReader(rd)
 	for {
-		line, err := brd.ReadBytes('\n')
+		buffer := make([]byte, MAX_READ_BUF_SIZE)
+		n, err := rd.Read(buffer)
+		if n > 0 {
+			stream <- buffer
+		}
 		if err == io.EOF {
-			// if line buffer has data, we should write it to stream channel
+			// if buffer has data, we should write it to stream channel
 			// it is possible that output producer is slow and there is no
-			// new line byte when we get EOF.
-			if len(line) > 0 {
-				stream <- line
-			}
+			// not enough byte to fill the entire buffer when we get EOF.
 			if j.Status().Status == EXITED {
 				break
 			}
@@ -260,7 +261,6 @@ func (j *Job) startStream(rd io.ReadCloser, stream chan []byte) {
 			time.Sleep(time.Millisecond)
 			continue
 		}
-		stream <- line
 	}
 }
 
